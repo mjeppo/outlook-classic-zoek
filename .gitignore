@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+
+# User-specific files
+.vs/
+*.user
+*.suo
+
+# Logs and temp
+*.log
+*.tmp
+
+# Local app data or generated runtime files
+*.cache
