@@ -20,6 +20,9 @@ internal sealed class AppSettings
     public List<string> IndexIncludedFolderEntryIds { get; set; } = new();
     public bool IndexAutoRefreshEnabled { get; set; } = false;
     public int IndexRefreshIntervalMinutes { get; set; } = 60;
+    public string Language { get; set; } = "nl";
+    public int SearchHistoryMaxCount { get; set; } = 10;
+    public List<string> SearchHistory { get; set; } = new();
 }
 
 internal static class AppSettingsStore

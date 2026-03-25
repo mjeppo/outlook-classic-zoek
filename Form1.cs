@@ -4,10 +4,6 @@ namespace OutlookClassicSearch;
 
 public partial class Form1 : Form
 {
-    private const int ResultsTop = 352;
-    private const int PreviewHeight = 170;
-    private const int ResultsBottomMargin = 8;
-
     private readonly BindingSource _resultsBindingSource = new();
     private readonly BindingList<EmailSearchResult> _visibleResults = new();
     private readonly List<EmailSearchResult> _allResults = new();
@@ -19,50 +15,65 @@ public partial class Form1 : Form
     private bool _isAutoIndexRunning;
     private List<MailboxFolderRoot> _folderRoots = new();
     private List<string> _folderTreeStoreIds = new();
+    private List<StoreListItem> _availableStores = new();
+    private Dictionary<string, TextBox> _columnFilterMap = new();
     private string _sortColumn = nameof(EmailSearchResult.ReceivedTime);
     private bool _sortAscending;
 
     public Form1()
     {
         InitializeComponent();
+        AppVisualAssets.ApplyWindowIcon(this);
+        AppTheme.Apply(this);
+        AppTheme.ApplyPrimaryStyle(btnSearch);
 
         _settings = AppSettingsStore.Load();
+        Strings.IsEnglish = _settings.Language == "en";
+        ApplyStrings();
         InitializeResultsGridColumns();
         _resultsBindingSource.DataSource = _visibleResults;
         dgvResults.DataSource = _resultsBindingSource;
         dgvResults.ColumnHeaderMouseClick += dgvResults_ColumnHeaderMouseClick;
 
-        txtExcludedAttachmentExt.Text = _settings.ExcludedAttachmentExtensionsRaw;
-        chkSearchBody.Checked = _settings.SearchBody;
-        chkSearchAttachments.Checked = _settings.SearchAttachments;
         chkUseDateRange.Checked = _settings.UseDateRange;
         dtpFrom.Value = _settings.DateFrom;
         dtpTo.Value = _settings.DateTo;
-        nudMaxResults.Value = Math.Clamp(_settings.MaxResults, 10, 5000);
-        chkUseIndex.Checked = _settings.UsePersistentIndexForSearch;
-        chkExcludeAttachmentExt.Checked = _settings.ExcludeAttachmentExtensions;
-        txtExcludedAttachmentExt.Enabled = _settings.ExcludeAttachmentExtensions;
-        chkExcludeAttachmentExt.CheckedChanged += (_, _) => txtExcludedAttachmentExt.Enabled = chkExcludeAttachmentExt.Checked;
 
-        txtResultFilter.TextChanged += (_, _) => ApplyResultFilter();
-        txtFilterMailbox.TextChanged += (_, _) => ApplyResultFilter();
-        txtFilterRecipients.TextChanged += (_, _) => ApplyResultFilter();
+    RefreshHistoryDropdown();
+
+        _columnFilterMap = new Dictionary<string, TextBox>
+        {
+            [nameof(EmailSearchResult.Mailbox)]      = txtColMailbox,
+            [nameof(EmailSearchResult.FolderPath)]   = txtColFolderPath,
+            [nameof(EmailSearchResult.ReceivedTime)] = txtColDate,
+            [nameof(EmailSearchResult.Subject)]      = txtColSubject,
+            [nameof(EmailSearchResult.Sender)]       = txtColSender,
+            [nameof(EmailSearchResult.Recipients)]   = txtColRecipients,
+        };
+        foreach (var tb in _columnFilterMap.Values)
+            tb.TextChanged += (_, _) => ApplyResultFilter();
+
+        dgvResults.ColumnWidthChanged        += (_, _) => SyncFilterPositions();
+        dgvResults.ColumnDisplayIndexChanged += (_, _) => SyncFilterPositions();
+        dgvResults.Scroll                    += (_, _) => SyncFilterPositions();
+        splitContainer.SplitterMoved         += (_, _) => SyncFilterPositions();
+        Resize                               += (_, _) => SyncFilterPositions();
+
         chkShowPreview.CheckedChanged += (_, _) => UpdatePreviewVisibility();
         dgvResults.SelectionChanged += dgvResults_SelectionChanged;
-        Resize += (_, _) => UpdateResultsLayout();
 
         _indexRefreshTimer.Interval = 30000;
         _indexRefreshTimer.Tick += async (_, _) => await TryRunAutoIndexRefreshAsync();
         _indexRefreshTimer.Start();
 
-        UpdateResultsLayout();
-        UpdateExcludedFolderSummary();
+        UpdatePreviewVisibility();
         btnCopyPreview.Enabled = false;
     }
 
     private async void Form1_Load(object sender, EventArgs e)
     {
         await RefreshStoresAsync();
+        SyncFilterPositions();
     }
 
     private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -73,48 +84,43 @@ public partial class Form1 : Form
         SaveSettings();
     }
 
-    private async void btnRefreshStores_Click(object sender, EventArgs e)
-    {
-        CaptureSelectedStoresToSettings();
-        _folderRoots = new List<MailboxFolderRoot>();
-        _folderTreeStoreIds = new List<string>();
-        await RefreshStoresAsync();
-    }
+
 
     private async void btnSearch_Click(object sender, EventArgs e)
     {
-        string query = txtQuery.Text.Trim();
+        string query = cmbQuery.Text.Trim();
         if (string.IsNullOrWhiteSpace(query))
         {
-            MessageBox.Show("Vul een zoekterm in.", "Zoekterm ontbreekt", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            txtQuery.Focus();
+            MessageBox.Show(Strings.MsgEnterQuery, Strings.MsgEnterQueryTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            cmbQuery.Focus();
             return;
         }
 
         var selectedStores = GetSelectedStores();
         if (selectedStores.Count == 0)
         {
-            MessageBox.Show("Selecteer minimaal 1 mailbox.", "Mailbox ontbreekt", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(Strings.MsgSelectMailbox, Strings.MsgSelectMailboxTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         var criteria = new SearchCriteria
         {
             Query = query,
-            SearchBody = chkSearchBody.Checked,
-            SearchAttachments = chkSearchAttachments.Checked,
-            UsePersistentIndex = chkUseIndex.Checked,
+            SearchBody = _settings.SearchBody,
+            SearchAttachments = _settings.SearchAttachments,
+            UsePersistentIndex = _settings.UsePersistentIndexForSearch,
             From = chkUseDateRange.Checked ? dtpFrom.Value.Date : null,
             To = chkUseDateRange.Checked ? dtpTo.Value.Date.AddDays(1).AddTicks(-1) : null,
-            MaxResults = (int)nudMaxResults.Value,
+            MaxResults = _settings.MaxResults,
             SelectedStoreIds = selectedStores.Select(s => s.StoreId).ToArray(),
             ExcludedFolderEntryIds = _settings.ExcludedFolderEntryIds,
-            ExcludedAttachmentExtensions = chkExcludeAttachmentExt.Checked
-                ? AppSettingsParser.ParseExtensions(txtExcludedAttachmentExt.Text)
+            ExcludedAttachmentExtensions = _settings.ExcludeAttachmentExtensions
+                ? AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw)
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         };
 
-        SetBusy(true, "Zoeken gestart...");
+        SetBusy(true, Strings.StatusSearchStarted);
+        AddToSearchHistory(query);
         _searchCancellation = new CancellationTokenSource();
         _allResults.Clear();
         _visibleResults.Clear();
@@ -134,22 +140,22 @@ public partial class Form1 : Form
 
             ApplyResultFilter();
 
-            toolStripStatusLabel1.Text = $"Klaar. {results.Count} resultaat/resultaten.";
+            toolStripStatusLabel1.Text = string.Format(Strings.StatusSearchDoneFmt, results.Count);
             SaveSettings();
         }
         catch (OperationCanceledException)
         {
-            toolStripStatusLabel1.Text = "Zoeken geannuleerd.";
+            toolStripStatusLabel1.Text = Strings.StatusSearchCancelled;
         }
         catch (Exception ex)
         {
             ErrorDetailsDialog.Show(
                 this,
-                "Zoeken mislukt",
-                "Zoeken in Outlook is mislukt.",
+                Strings.ErrSearchTitle,
+                Strings.ErrSearchSummary,
                 ex,
-                "Controleer of Outlook Classic draait en of je mailboxen bereikbaar zijn.");
-            toolStripStatusLabel1.Text = "Zoeken mislukt.";
+                Strings.ErrSearchHint);
+            toolStripStatusLabel1.Text = Strings.StatusSearchFailed;
         }
         finally
         {
@@ -176,12 +182,12 @@ public partial class Form1 : Form
         try
         {
             Clipboard.SetText(preview);
-            toolStripStatusLabel1.Text = "Voorbeeld gekopieerd naar klembord.";
+            toolStripStatusLabel1.Text = Strings.StatusCopied;
         }
         catch (Exception ex)
         {
-            toolStripStatusLabel1.Text = "Kopieren mislukt.";
-            ErrorDetailsDialog.Show(this, "Kopieren mislukt", "Het voorbeeld kon niet worden gekopieerd.", ex);
+            toolStripStatusLabel1.Text = Strings.StatusCopyFailed;
+            ErrorDetailsDialog.Show(this, Strings.ErrCopyTitle, Strings.ErrCopySummary, ex);
         }
     }
 
@@ -205,10 +211,10 @@ public partial class Form1 : Form
         {
             ErrorDetailsDialog.Show(
                 this,
-                "Mail openen mislukt",
-                "De geselecteerde mail kon niet worden geopend.",
+                Strings.ErrOpenMailTitle,
+                Strings.ErrOpenMailSummary,
                 ex,
-                "De mail is mogelijk verwijderd of je hebt geen rechten meer op deze mailbox.");
+                Strings.ErrOpenMailHint);
         }
     }
 
@@ -217,81 +223,67 @@ public partial class Form1 : Form
         await RefreshPreviewAsync();
     }
 
-    private async void btnChooseExcludedFolders_Click(object sender, EventArgs e)
+    private void mnuInstellingen_Click(object sender, EventArgs e)
     {
-        var selectedStores = GetSelectedStores();
-        if (selectedStores.Count == 0)
+        using var dlg = new SettingsForm(_settings, _availableStores, _folderRoots, _folderTreeStoreIds);
+        if (dlg.ShowDialog(this) == DialogResult.OK)
         {
-            MessageBox.Show(this, "Selecteer eerst minimaal 1 mailbox.", "Geen mailboxen", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        var selectedStoreIds = selectedStores.Select(s => s.StoreId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        bool sameStoreSelection = selectedStoreIds.Count == _folderTreeStoreIds.Count &&
-            selectedStoreIds.All(id => _folderTreeStoreIds.Contains(id, StringComparer.OrdinalIgnoreCase));
-        var dialogRoots = sameStoreSelection ? _folderRoots : new List<MailboxFolderRoot>();
-
-        using var dialog = new FolderSelectionForm(
-            "Mappen uitsluiten van zoeken",
-            dialogRoots,
-            _settings.ExcludedFolderEntryIds,
-            async cancellationToken =>
-            {
-                toolStripStatusLabel1.Text = "Mappenstructuur laden...";
-                var roots = await OutlookSearcher.GetFolderTreeAsync(selectedStoreIds, cancellationToken);
-                _folderRoots = roots.ToList();
-                _folderTreeStoreIds = selectedStoreIds;
-                toolStripStatusLabel1.Text = "Mappenstructuur geladen.";
-                return roots;
-            });
-
-        if (dialog.ShowDialog(this) == DialogResult.OK)
-        {
-            _settings.ExcludedFolderEntryIds = dialog.GetSelectedEntryIds().ToList();
-            UpdateExcludedFolderSummary();
-            SaveSettings();
+            _availableStores = dlg.AvailableStores;
+            _folderRoots = dlg.FolderRoots;
+            _folderTreeStoreIds = dlg.FolderTreeStoreIds;
+            AppSettingsStore.Save(_settings);
+                        RefreshHistoryDropdown();
+            ApplyStrings();
         }
     }
 
-    private void btnManageIndex_Click(object sender, EventArgs e)
+    private void mnuHelpHelp_Click(object sender, EventArgs e)
     {
-        var selectedStores = GetSelectedStores();
-        using var form = new IndexManagerForm(selectedStores, _settings, _folderRoots);
-        if (form.ShowDialog(this) == DialogResult.OK)
-        {
-            SaveSettings();
-        }
+        MessageBox.Show(
+            "Outlook Classic Search – Helpoverzicht\n\n" +
+            "Zoeken\n" +
+            "  • Typ een zoekterm en druk op Enter of klik Zoeken.\n" +
+            "  • Schakel 'Gebruik datum' in om te filteren op een datumperiode.\n" +
+            "  • Via ⚙ Instellingen kies je mailboxen, mappen en zoekopties.\n\n" +
+            "Resultaten\n" +
+            "  • Klik op een kolomkop om te sorteren; nogmaals klikken keert de volgorde om.\n" +
+            "  • Sleep een kolomkop om de volgorde van kolommen te wijzigen.\n" +
+            "  • Rechtsklik op een kolomkop om kolommen te verbergen of weer te tonen.\n" +
+            "  • Typ in een filterveld boven een kolom om de zoekresultaten direct te filteren.\n" +
+            "  • Dubbelklik op een rij om het e-mailbericht in Outlook te openen.\n\n" +
+            "Voorbeeldvenster\n" +
+            "  • Vink 'Toon voorbeeldvenster' aan om een berichtvoorbeeld te zien.\n" +
+            "  • Versleep de splitter om het voorbeeldvenster groter of kleiner te maken.\n" +
+            "  • Gebruik 'Kopieer voorbeeld' om de berichttekst naar het klembord te kopiëren.",
+            "Help",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
+
+    private void mnuHelpInfo_Click(object sender, EventArgs e)
+    {
+        using var info = new InfoForm();
+        info.ShowDialog(this);
     }
 
     private async Task RefreshStoresAsync()
     {
-        SetBusy(true, "Mailboxen ophalen...");
+        SetBusy(true, Strings.SettingsMsgLoadingMailboxes);
         try
         {
             var stores = await OutlookSearcher.GetAvailableStoresAsync(CancellationToken.None);
-            clbStores.Items.Clear();
-
-            var selectedIds = new HashSet<string>(_settings.SelectedStoreIds, StringComparer.OrdinalIgnoreCase);
-            var selectedNames = new HashSet<string>(_settings.SelectedStoreDisplayNames, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var store in stores)
-            {
-                bool hasSavedSelection = selectedIds.Count > 0 || selectedNames.Count > 0;
-                bool isChecked = !hasSavedSelection || selectedIds.Contains(store.StoreId) || selectedNames.Contains(store.DisplayName);
-                clbStores.Items.Add(new StoreListItem(store.DisplayName, store.StoreId), isChecked);
-            }
-
-            toolStripStatusLabel1.Text = $"{stores.Count} mailbox(en) gevonden.";
+            _availableStores = stores.Select(s => new StoreListItem(s.DisplayName, s.StoreId)).ToList();
+            toolStripStatusLabel1.Text = string.Format(Strings.StatusMailboxesFoundFmt, _availableStores.Count);
         }
         catch (Exception ex)
         {
             ErrorDetailsDialog.Show(
                 this,
-                "Mailboxen laden mislukt",
-                "Mailboxen konden niet uit Outlook worden opgehaald.",
+                Strings.ErrMailboxTitle,
+                Strings.ErrMailboxSummary,
                 ex,
-                "Start Outlook Classic handmatig, controleer je profiel en probeer daarna opnieuw.");
-            toolStripStatusLabel1.Text = "Mailboxen laden mislukt.";
+                Strings.ErrMailboxHint);
+            toolStripStatusLabel1.Text = Strings.StatusMailboxesFailed;
         }
         finally
         {
@@ -299,66 +291,36 @@ public partial class Form1 : Form
         }
     }
 
-    private async Task LoadFolderTreeAsync()
-    {
-        var selectedStores = GetSelectedStores();
-        if (selectedStores.Count == 0)
-        {
-            _folderRoots = new List<MailboxFolderRoot>();
-            return;
-        }
-
-        try
-        {
-            toolStripStatusLabel1.Text = "Mappenstructuur laden...";
-            _folderRoots = (await OutlookSearcher.GetFolderTreeAsync(selectedStores.Select(s => s.StoreId).ToArray(), CancellationToken.None)).ToList();
-            UpdateExcludedFolderSummary();
-        }
-        catch (Exception ex)
-        {
-            ErrorDetailsDialog.Show(this, "Mappen laden mislukt", "De mappenstructuur kon niet worden geladen.", ex);
-        }
-    }
-
     private List<StoreListItem> GetSelectedStores()
     {
-        return clbStores.CheckedItems
-            .OfType<StoreListItem>()
+        if (_availableStores.Count == 0) return new List<StoreListItem>();
+        var selectedIds = new HashSet<string>(_settings.SelectedStoreIds, StringComparer.OrdinalIgnoreCase);
+        var selectedNames = new HashSet<string>(_settings.SelectedStoreDisplayNames, StringComparer.OrdinalIgnoreCase);
+        if (selectedIds.Count == 0 && selectedNames.Count == 0) return _availableStores.ToList();
+        return _availableStores
+            .Where(s => selectedIds.Contains(s.StoreId) || selectedNames.Contains(s.DisplayName))
             .ToList();
     }
 
     private void SetBusy(bool busy, string statusText)
     {
         btnSearch.Enabled = !busy;
-        btnRefreshStores.Enabled = !busy;
         btnCancel.Enabled = busy;
-        btnChooseExcludedFolders.Enabled = !busy;
-        btnManageIndex.Enabled = !busy;
-        chkUseIndex.Enabled = !busy;
-        progressBar.Visible = busy;
-        progressBar.Style = ProgressBarStyle.Marquee;
+        toolStripProgressBar.Visible = busy;
         toolStripStatusLabel1.Text = statusText;
     }
 
     private void SaveSettings()
     {
-        CaptureSelectedStoresToSettings();
-        _settings.SearchBody = chkSearchBody.Checked;
-        _settings.SearchAttachments = chkSearchAttachments.Checked;
         _settings.UseDateRange = chkUseDateRange.Checked;
         _settings.DateFrom = dtpFrom.Value.Date;
         _settings.DateTo = dtpTo.Value.Date;
-        _settings.MaxResults = (int)nudMaxResults.Value;
-        _settings.UsePersistentIndexForSearch = chkUseIndex.Checked;
-        _settings.ExcludeAttachmentExtensions = chkExcludeAttachmentExt.Checked;
-        _settings.ExcludedAttachmentExtensionsRaw = txtExcludedAttachmentExt.Text.Trim();
-
         AppSettingsStore.Save(_settings);
     }
 
     private void UpdatePreviewVisibility()
     {
-        UpdateResultsLayout();
+        splitContainer.Panel2Collapsed = !chkShowPreview.Checked;
 
         if (!chkShowPreview.Checked)
         {
@@ -369,40 +331,51 @@ public partial class Form1 : Form
             _previewCancellation = null;
         }
 
-        ApplyResultFilter();
         _ = RefreshPreviewAsync();
     }
 
-    private void UpdateResultsLayout()
+    private void btnClosePreview_Click(object sender, EventArgs e)
     {
-        int statusTop = ClientSize.Height - statusStrip1.Height;
+        chkShowPreview.Checked = false;
+    }
 
-        if (chkShowPreview.Checked)
+    private void txtQuery_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Enter && btnSearch.Enabled)
         {
-            pnlPreview.Visible = true;
-            pnlPreview.Height = PreviewHeight;
-            pnlPreview.Top = Math.Max(ResultsTop + 80, statusTop - ResultsBottomMargin - PreviewHeight);
-            dgvResults.Top = ResultsTop;
-            dgvResults.Height = Math.Max(80, pnlPreview.Top - ResultsTop - 6);
-        }
-        else
-        {
-            pnlPreview.Visible = false;
-            dgvResults.Top = ResultsTop;
-            dgvResults.Height = Math.Max(80, statusTop - ResultsBottomMargin - ResultsTop);
+            e.SuppressKeyPress = true;
+            btnSearch_Click(sender, e);
         }
     }
 
-    private void CaptureSelectedStoresToSettings()
+
+    private void cmbQuery_KeyDown(object sender, KeyEventArgs e)
     {
-        var selected = GetSelectedStores();
-        _settings.SelectedStoreIds = selected.Select(s => s.StoreId).ToList();
-        _settings.SelectedStoreDisplayNames = selected.Select(s => s.DisplayName).ToList();
+        if (e.KeyCode == Keys.Enter && btnSearch.Enabled)
+        {
+            e.SuppressKeyPress = true;
+            btnSearch_Click(sender, e);
+        }
     }
 
-    private void UpdateExcludedFolderSummary()
+    private void AddToSearchHistory(string query)
     {
-        lblExcludedFolderSummary.Text = $"Uitgesloten mappen: {_settings.ExcludedFolderEntryIds.Count}";
+        var history = _settings.SearchHistory;
+        history.Remove(query);
+        history.Insert(0, query);
+        int max = Math.Max(1, _settings.SearchHistoryMaxCount);
+        while (history.Count > max)
+            history.RemoveAt(history.Count - 1);
+        RefreshHistoryDropdown();
+        AppSettingsStore.Save(_settings);
+    }
+
+    private void RefreshHistoryDropdown()
+    {
+        string current = cmbQuery.Text;
+        cmbQuery.Items.Clear();
+        cmbQuery.Items.AddRange(_settings.SearchHistory.ToArray());
+        cmbQuery.Text = current;
     }
 
     private async Task TryRunAutoIndexRefreshAsync()
@@ -438,9 +411,9 @@ public partial class Form1 : Form
                 ExcludedAttachmentExtensions = AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw)
             };
 
-            var progress = new Progress<string>(text => toolStripStatusLabel1.Text = "Auto-index: " + text);
+            var progress = new Progress<string>(text => toolStripStatusLabel1.Text = Strings.StatusAutoIndexPrefix + text);
             await OutlookSearcher.BuildPersistentIndexAsync(request, progress, CancellationToken.None);
-            toolStripStatusLabel1.Text = "Auto-index bijgewerkt.";
+            toolStripStatusLabel1.Text = Strings.StatusAutoIndexDone;
         }
         catch
         {
@@ -460,21 +433,21 @@ public partial class Form1 : Form
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.Mailbox),
-            HeaderText = "Mailbox",
+            HeaderText = Strings.ColMailbox,
             Width = 150,
             SortMode = DataGridViewColumnSortMode.Programmatic
         });
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.FolderPath),
-            HeaderText = "Map",
+            HeaderText = Strings.ColFolder,
             Width = 220,
             SortMode = DataGridViewColumnSortMode.Programmatic
         });
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.ReceivedTime),
-            HeaderText = "Datum",
+            HeaderText = Strings.ColDate,
             Width = 125,
             SortMode = DataGridViewColumnSortMode.Programmatic,
             DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm" }
@@ -482,26 +455,75 @@ public partial class Form1 : Form
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.Subject),
-            HeaderText = "Onderwerp",
+            HeaderText = Strings.ColSubject,
             Width = 260,
             SortMode = DataGridViewColumnSortMode.Programmatic
         });
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.Sender),
-            HeaderText = "Afzender",
+            HeaderText = Strings.ColSender,
             Width = 180,
             SortMode = DataGridViewColumnSortMode.Programmatic
         });
         dgvResults.Columns.Add(new DataGridViewTextBoxColumn
         {
             DataPropertyName = nameof(EmailSearchResult.Recipients),
-            HeaderText = "Geadresseerde",
+            HeaderText = Strings.ColRecipients,
             SortMode = DataGridViewColumnSortMode.Programmatic,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         });
 
         UpdateSortGlyphs();
+    }
+
+    private void ApplyStrings()
+    {
+        // Menu
+        mnuInstellingen.Text = Strings.MenuSettings;
+        mnuHelp.Text         = Strings.MenuHelp;
+        mnuHelpHelp.Text     = Strings.MenuHelpItem;
+        mnuHelpInfo.Text     = Strings.MenuInfoItem;
+
+        // Toolbar / controls
+        lblQuery.Text              = Strings.LabelQuery;
+        btnSearch.Text             = Strings.BtnSearch;
+        btnCancel.Text             = Strings.BtnCancel;
+        chkShowPreview.Text        = Strings.ChkShowPreview;
+        chkUseDateRange.Text       = Strings.ChkUseDateRange;
+
+        // Filter placeholders
+        txtColMailbox.PlaceholderText    = Strings.FilterMailbox;
+        txtColFolderPath.PlaceholderText = Strings.FilterFolder;
+        txtColDate.PlaceholderText       = Strings.FilterDate;
+        txtColSubject.PlaceholderText    = Strings.FilterSubject;
+        txtColSender.PlaceholderText     = Strings.FilterSender;
+        txtColRecipients.PlaceholderText = Strings.FilterRecipients;
+
+        // Preview panel
+        btnClosePreview.Text = Strings.BtnClosePreview;
+        btnCopyPreview.Text  = Strings.BtnCopyPreview;
+
+        // Status bar (only reset when idle)
+        if (!toolStripProgressBar.Visible)
+            toolStripStatusLabel1.Text = Strings.StatusReady;
+
+        // Column headers
+        foreach (DataGridViewColumn col in dgvResults.Columns)
+        {
+            col.HeaderText = col.DataPropertyName switch
+            {
+                nameof(EmailSearchResult.Mailbox)      => Strings.ColMailbox,
+                nameof(EmailSearchResult.FolderPath)   => Strings.ColFolder,
+                nameof(EmailSearchResult.ReceivedTime) => Strings.ColDate,
+                nameof(EmailSearchResult.Subject)      => Strings.ColSubject,
+                nameof(EmailSearchResult.Sender)       => Strings.ColSender,
+                nameof(EmailSearchResult.Recipients)   => Strings.ColRecipients,
+                _ => col.HeaderText
+            };
+        }
+
+        SyncFilterPositions();
     }
 
     private void ApplyResultFilter()
@@ -542,21 +564,21 @@ public partial class Form1 : Form
     private void dgvResults_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
     {
         if (e.ColumnIndex < 0 || e.ColumnIndex >= dgvResults.Columns.Count)
+            return;
+
+        if (e.Button == MouseButtons.Right)
         {
+            ShowColumnVisibilityMenu();
             return;
         }
 
         var column = dgvResults.Columns[e.ColumnIndex];
         string? clickedProperty = column.DataPropertyName;
         if (string.IsNullOrWhiteSpace(clickedProperty))
-        {
             return;
-        }
 
         if (string.Equals(_sortColumn, clickedProperty, StringComparison.Ordinal))
-        {
             _sortAscending = !_sortAscending;
-        }
         else
         {
             _sortColumn = clickedProperty;
@@ -564,6 +586,19 @@ public partial class Form1 : Form
         }
 
         ApplyResultFilter();
+    }
+
+    private void ShowColumnVisibilityMenu()
+    {
+        var menu = new ContextMenuStrip();
+        foreach (DataGridViewColumn col in dgvResults.Columns)
+        {
+            var item = new ToolStripMenuItem(col.HeaderText) { Checked = col.Visible, CheckOnClick = true };
+            var colRef = col;
+            item.CheckedChanged += (_, _) => { colRef.Visible = item.Checked; SyncFilterPositions(); };
+            menu.Items.Add(item);
+        }
+        menu.Show(dgvResults, dgvResults.PointToClient(Cursor.Position));
     }
 
     private void UpdateSortGlyphs()
@@ -585,25 +620,43 @@ public partial class Form1 : Form
 
     private bool MatchesResultFilter(EmailSearchResult result)
     {
-        string globalFilter = txtResultFilter.Text.Trim();
-        string mailboxFilter = txtFilterMailbox.Text.Trim();
-        string recipientsFilter = txtFilterRecipients.Text.Trim();
-
         var comparison = StringComparison.OrdinalIgnoreCase;
+        foreach (var (prop, tb) in _columnFilterMap)
+        {
+            string f = tb.Text.Trim();
+            if (string.IsNullOrEmpty(f)) continue;
+            string value = prop switch
+            {
+                nameof(EmailSearchResult.Mailbox)      => result.Mailbox,
+                nameof(EmailSearchResult.FolderPath)   => result.FolderPath,
+                nameof(EmailSearchResult.ReceivedTime) => result.ReceivedTime.ToString("yyyy-MM-dd HH:mm"),
+                nameof(EmailSearchResult.Subject)      => result.Subject,
+                nameof(EmailSearchResult.Sender)       => result.Sender,
+                nameof(EmailSearchResult.Recipients)   => result.Recipients,
+                _ => string.Empty
+            };
+            if (!value.Contains(f, comparison)) return false;
+        }
+        return true;
+    }
 
-        bool mailboxMatches = string.IsNullOrWhiteSpace(mailboxFilter) ||
-            result.Mailbox.Contains(mailboxFilter, comparison);
-        bool recipientsMatches = string.IsNullOrWhiteSpace(recipientsFilter) ||
-            result.Recipients.Contains(recipientsFilter, comparison);
-        bool globalMatches = string.IsNullOrWhiteSpace(globalFilter) ||
-            result.Mailbox.Contains(globalFilter, comparison) ||
-            result.FolderPath.Contains(globalFilter, comparison) ||
-            result.ReceivedTime.ToString("yyyy-MM-dd HH:mm").Contains(globalFilter, comparison) ||
-            result.Subject.Contains(globalFilter, comparison) ||
-            result.Sender.Contains(globalFilter, comparison) ||
-            result.Recipients.Contains(globalFilter, comparison);
-
-        return mailboxMatches && recipientsMatches && globalMatches;
+    private void SyncFilterPositions()
+    {
+        if (_columnFilterMap.Count == 0) return;
+        foreach (DataGridViewColumn col in dgvResults.Columns)
+        {
+            if (!_columnFilterMap.TryGetValue(col.DataPropertyName, out var tb)) continue;
+            var rect = dgvResults.GetColumnDisplayRectangle(col.Index, false);
+            if (!col.Visible || rect.Width == 0)
+            {
+                tb.Visible = false;
+            }
+            else
+            {
+                tb.Visible = true;
+                tb.SetBounds(rect.X, 0, rect.Width, pnlFilters.Height);
+            }
+        }
     }
 
     private async Task RefreshPreviewAsync()

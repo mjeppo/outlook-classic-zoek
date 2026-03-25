@@ -24,10 +24,11 @@ internal sealed class FolderSelectionForm : Form
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(760, 620);
         MinimumSize = new Size(600, 450);
+        AppVisualAssets.ApplyWindowIcon(this);
 
         _lblInfo.Dock = DockStyle.Top;
         _lblInfo.Height = 32;
-        _lblInfo.Text = "Vink mappen aan en klik op Opslaan.";
+        _lblInfo.Text = Strings.FolderCheckAndSave;
         _lblInfo.Padding = new Padding(8, 8, 8, 0);
 
         _tree.Dock = DockStyle.Fill;
@@ -47,13 +48,14 @@ internal sealed class FolderSelectionForm : Form
             WrapContents = false
         };
 
-        _btnOk.Text = "Opslaan";
+        _btnOk.Text = Strings.BtnSave;
         _btnOk.Width = 100;
         _btnOk.Height = 30;
         _btnOk.Margin = new Padding(8, 0, 0, 0);
         _btnOk.Click += (_, _) => DialogResult = DialogResult.OK;
+        AppTheme.ApplyPrimaryStyle(_btnOk);
 
-        _btnCancel.Text = "Annuleren";
+        _btnCancel.Text = Strings.BtnCancel;
         _btnCancel.Width = 100;
         _btnCancel.Height = 30;
         _btnCancel.Margin = new Padding(8, 0, 0, 0);
@@ -69,6 +71,8 @@ internal sealed class FolderSelectionForm : Form
 
         AcceptButton = _btnOk;
         CancelButton = _btnCancel;
+
+        AppTheme.Apply(this);
 
         LoadTree(roots);
 
@@ -119,21 +123,21 @@ internal sealed class FolderSelectionForm : Form
         _loading = true;
         _btnOk.Enabled = false;
         _tree.Enabled = false;
-        _lblInfo.Text = "Mappenstructuur laden...";
+            _lblInfo.Text = Strings.FolderLoading;
 
         try
         {
             var loadedRoots = await _rootsLoader(_loadCts.Token);
             LoadTree(loadedRoots);
-            _lblInfo.Text = "Vink mappen aan en klik op Opslaan.";
+            _lblInfo.Text = Strings.FolderCheckAndSave;
         }
         catch (OperationCanceledException)
         {
-            _lblInfo.Text = "Laden geannuleerd.";
+            _lblInfo.Text = Strings.FolderLoadCancelled;
         }
         catch
         {
-            _lblInfo.Text = "Laden mislukt. Sluit dit venster en probeer opnieuw.";
+            _lblInfo.Text = Strings.FolderLoadFailed;
         }
         finally
         {

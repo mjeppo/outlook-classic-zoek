@@ -25,16 +25,17 @@ internal sealed class IndexManagerForm : Form
         _settings = settings;
         _roots = new List<MailboxFolderRoot>(preloadedRoots);
 
-        Text = "Indexbeheer";
+        Text = Strings.IndexTitle;
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(760, 380);
         MinimumSize = new Size(640, 300);
+        AppVisualAssets.ApplyWindowIcon(this);
 
         _lblScope.AutoSize = false;
         _lblScope.Dock = DockStyle.Top;
         _lblScope.Height = 44;
         _lblScope.Padding = new Padding(10, 10, 10, 0);
-        _lblScope.Text = "Mailboxscope: niet geladen";
+        _lblScope.Text = Strings.IndexScopeNotLoaded;
 
         _lblIndexState.AutoSize = false;
         _lblIndexState.Dock = DockStyle.Top;
@@ -43,28 +44,28 @@ internal sealed class IndexManagerForm : Form
 
         var panel = new Panel { Dock = DockStyle.Fill };
 
-        _btnSelectFolders.Text = "Mappen voor index kiezen";
+        _btnSelectFolders.Text = Strings.IndexBtnSelectFolders;
         _btnSelectFolders.SetBounds(12, 12, 220, 32);
         _btnSelectFolders.Click += async (_, _) => await SelectIncludedFoldersAsync();
 
-        _btnBuild.Text = "Index nu verversen";
+        _btnBuild.Text = Strings.IndexBtnRefresh;
         _btnBuild.SetBounds(240, 12, 180, 32);
         _btnBuild.Click += async (_, _) => await BuildIndexAsync();
 
-        _btnClear.Text = "Index verwijderen";
+        _btnClear.Text = Strings.IndexBtnClear;
         _btnClear.SetBounds(428, 12, 150, 32);
         _btnClear.Click += (_, _) =>
         {
             PersistentIndexStore.Clear();
-            _lblIndexState.Text = "Index: verwijderd";
+            _lblIndexState.Text = Strings.IndexStateNone;
         };
 
-        _chkAutoRefresh.Text = "Automatisch verversen";
+        _chkAutoRefresh.Text = Strings.IndexChkAutoRefresh;
         _chkAutoRefresh.SetBounds(12, 66, 170, 24);
         _chkAutoRefresh.Checked = _settings.IndexAutoRefreshEnabled;
         _chkAutoRefresh.CheckedChanged += (_, _) => _settings.IndexAutoRefreshEnabled = _chkAutoRefresh.Checked;
 
-        _lblInterval.Text = "Interval (min):";
+        _lblInterval.Text = Strings.IndexLblInterval;
         _lblInterval.SetBounds(200, 68, 90, 20);
 
         _nudInterval.Minimum = 5;
@@ -78,7 +79,7 @@ internal sealed class IndexManagerForm : Form
         _progress.SetBounds(12, 110, 720, 22);
         _progress.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
-        _btnClose.Text = "Sluiten";
+        _btnClose.Text = Strings.BtnClose;
         _btnClose.SetBounds(632, 270, 100, 32);
         _btnClose.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         _btnClose.Click += (_, _) => DialogResult = DialogResult.OK;
@@ -96,17 +97,20 @@ internal sealed class IndexManagerForm : Form
         Controls.Add(_lblIndexState);
         Controls.Add(_lblScope);
 
+        AppTheme.Apply(this);
+        AppTheme.ApplyPrimaryStyle(_btnBuild);
+
         Shown += async (_, _) => await LoadDataAsync();
     }
 
     private async Task LoadDataAsync()
     {
-        _lblScope.Text = $"Mailboxscope: {_selectedStores.Count} geselecteerd";
+        _lblScope.Text = string.Format(Strings.IndexScopeSelectedFmt, _selectedStores.Count);
 
         var existing = PersistentIndexStore.Load();
         _lblIndexState.Text = existing is null
-            ? "Index: nog niet opgebouwd"
-            : $"Index: {existing.Items.Count} items, laatst: {existing.BuiltAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+            ? Strings.IndexStateNone
+            : string.Format(Strings.IndexStateFmt, existing.Items.Count, existing.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
 
         await Task.CompletedTask;
     }
@@ -114,7 +118,7 @@ internal sealed class IndexManagerForm : Form
     private async Task SelectIncludedFoldersAsync()
     {
         using var dialog = new FolderSelectionForm(
-            "Mappen opnemen in index",
+            Strings.IndexFolderTitle,
             _roots,
             _settings.IndexIncludedFolderEntryIds,
             async cancellationToken =>
@@ -140,7 +144,7 @@ internal sealed class IndexManagerForm : Form
     {
         if (_selectedStores.Count == 0)
         {
-            MessageBox.Show(this, "Selecteer eerst mailboxen in het hoofdscherm.", "Geen mailboxen", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Strings.IndexMsgNoMailbox, Strings.IndexMsgNoMailboxTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -160,13 +164,13 @@ internal sealed class IndexManagerForm : Form
                 ExcludedAttachmentExtensions = AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw)
             };
 
-            var progress = new Progress<string>(text => _lblIndexState.Text = $"Index: {text}");
+            var progress = new Progress<string>(text => _lblIndexState.Text = string.Format(Strings.IndexBuildProgressFmt, text));
             var built = await OutlookSearcher.BuildPersistentIndexAsync(request, progress, CancellationToken.None);
-            _lblIndexState.Text = $"Index: {built.Items.Count} items, laatst: {built.BuiltAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
+            _lblIndexState.Text = string.Format(Strings.IndexStateFmt, built.Items.Count, built.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
         }
         catch (Exception ex)
         {
-            ErrorDetailsDialog.Show(this, "Indexeren mislukt", "Het opbouwen van de index is mislukt.", ex);
+            ErrorDetailsDialog.Show(this, Strings.IndexErrTitle, Strings.IndexErrSummary, ex);
         }
         finally
         {
@@ -192,7 +196,7 @@ internal sealed class IndexManagerForm : Form
         if (_isBuildingIndex)
         {
             e.Cancel = true;
-            MessageBox.Show(this, "Wacht tot de indexering klaar is voordat je dit venster sluit.", "Indexering actief", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Strings.IndexMsgBusy, Strings.IndexMsgBusyTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 

@@ -26,6 +26,7 @@ internal static class ErrorDetailsDialog
         form.StartPosition = FormStartPosition.CenterParent;
         form.Size = new Size(980, 620);
         form.MinimumSize = new Size(780, 420);
+        AppVisualAssets.ApplyWindowIcon(form);
 
         textBox.Multiline = true;
         textBox.ReadOnly = true;
@@ -46,6 +47,8 @@ internal static class ErrorDetailsDialog
 
         form.Controls.Add(textBox);
         form.Controls.Add(copyButton);
+        AppTheme.Apply(form);
+        AppTheme.ApplyPrimaryStyle(copyButton);
         form.ShowDialog(owner);
     }
 
