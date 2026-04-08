@@ -293,6 +293,11 @@ internal static class OutlookSearcher
                                     ReceivedTime = mail.ReceivedTime
                                 });
 
+                                if (items.Count % 50 == 0)
+                                {
+                                    progress?.Report($"{items.Count} items verwerkt...");
+                                }
+
                                 return false;
                             });
                     }
@@ -995,6 +1000,22 @@ internal static class OutlookSearcher
         finally
         {
             ReleaseComObject(children);
+        }
+    }
+
+    private static T WithOutlookSession<T>(Func<Outlook.Application, Outlook.NameSpace, T> action)
+    {
+        Outlook.Application? app = null;
+        Outlook.NameSpace? mapi = null;
+        try
+        {
+            (app, mapi) = CreateOutlookSession();
+            return action(app, mapi);
+        }
+        finally
+        {
+            ReleaseComObject(mapi);
+            ReleaseComObject(app);
         }
     }
 

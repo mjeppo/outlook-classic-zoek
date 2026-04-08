@@ -100,10 +100,10 @@ internal sealed class IndexManagerForm : Form
         AppTheme.Apply(this);
         AppTheme.ApplyPrimaryStyle(_btnBuild);
 
-        Shown += async (_, _) => await LoadDataAsync();
+        Shown += (_, _) => LoadData();
     }
 
-    private async Task LoadDataAsync()
+    private void LoadData()
     {
         _lblScope.Text = string.Format(Strings.IndexScopeSelectedFmt, _selectedStores.Count);
 
@@ -111,8 +111,6 @@ internal sealed class IndexManagerForm : Form
         _lblIndexState.Text = existing is null
             ? Strings.IndexStateNone
             : string.Format(Strings.IndexStateFmt, existing.Items.Count, existing.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
-
-        await Task.CompletedTask;
     }
 
     private async Task SelectIncludedFoldersAsync()

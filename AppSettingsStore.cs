@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Windows.Forms;
 
 namespace OutlookClassicSearch;
 
@@ -11,7 +12,7 @@ internal sealed class AppSettings
     public bool SearchAttachments { get; set; } = false;
     public string ExcludedAttachmentExtensionsRaw { get; set; } = ".zip;.png;.jpg;.jpeg;.gif;.mp4;.mov";
     public bool UseDateRange { get; set; } = true;
-    public DateTime DateFrom { get; set; } = new DateTime(2025, 1, 1);
+    public DateTime DateFrom { get; set; } = DateTime.Today.AddYears(-1);
     public DateTime DateTo { get; set; } = DateTime.Today;
     public int MaxResults { get; set; } = 500;
     public bool UsePersistentIndexForSearch { get; set; } = true;
@@ -23,6 +24,13 @@ internal sealed class AppSettings
     public string Language { get; set; } = "nl";
     public int SearchHistoryMaxCount { get; set; } = 10;
     public List<string> SearchHistory { get; set; } = new();
+
+    // Venstergrootte en -positie
+    public FormWindowState WindowState { get; set; } = FormWindowState.Normal;
+    public int WindowLeft { get; set; } = -1;
+    public int WindowTop { get; set; } = -1;
+    public int WindowWidth { get; set; } = -1;
+    public int WindowHeight { get; set; } = -1;
 }
 
 internal static class AppSettingsStore

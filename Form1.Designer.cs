@@ -59,12 +59,19 @@ partial class Form1
         statusStrip1 = new StatusStrip();
         toolStripStatusLabel1 = new ToolStripStatusLabel();
         toolStripProgressBar = new ToolStripProgressBar();
+        chkSearchBody = new CheckBox();
+        chkSearchAttachments = new CheckBox();
+        lblMainMaxResults = new Label();
+        nudMainMaxResults = new NumericUpDown();
+        btnExcludeFolders = new Button();
+        lblExcludedFolderSummary = new Label();
         menuStrip1.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)splitContainer).BeginInit();
         splitContainer.Panel1.SuspendLayout();
         splitContainer.Panel2.SuspendLayout();
         splitContainer.SuspendLayout();
         ((System.ComponentModel.ISupportInitialize)dgvResults).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)nudMainMaxResults).BeginInit();
         pnlPreviewTop.SuspendLayout();
         pnlPreview.SuspendLayout();
         statusStrip1.SuspendLayout();
@@ -160,7 +167,8 @@ partial class Form1
         // 
         // dtpFrom
         // 
-        dtpFrom.Format = DateTimePickerFormat.Short;
+        dtpFrom.Format = DateTimePickerFormat.Custom;
+        dtpFrom.CustomFormat = "dd-MM-yyyy";
         dtpFrom.Location = new Point(278, 64);
         dtpFrom.Name = "dtpFrom";
         dtpFrom.Size = new Size(94, 23);
@@ -168,16 +176,69 @@ partial class Form1
         // 
         // dtpTo
         // 
-        dtpTo.Format = DateTimePickerFormat.Short;
+        dtpTo.Format = DateTimePickerFormat.Custom;
+        dtpTo.CustomFormat = "dd-MM-yyyy";
         dtpTo.Location = new Point(378, 64);
         dtpTo.Name = "dtpTo";
         dtpTo.Size = new Size(94, 23);
         dtpTo.TabIndex = 6;
         // 
+        // chkSearchBody
+        // 
+        chkSearchBody.AutoSize = true;
+        chkSearchBody.Location = new Point(8, 98);
+        chkSearchBody.Name = "chkSearchBody";
+        chkSearchBody.TabIndex = 7;
+        chkSearchBody.Text = "Zoek ook in body";
+        chkSearchBody.UseVisualStyleBackColor = true;
+        // 
+        // chkSearchAttachments
+        // 
+        chkSearchAttachments.AutoSize = true;
+        chkSearchAttachments.Location = new Point(160, 98);
+        chkSearchAttachments.Name = "chkSearchAttachments";
+        chkSearchAttachments.TabIndex = 8;
+        chkSearchAttachments.Text = "Zoek ook in bijlagen";
+        chkSearchAttachments.UseVisualStyleBackColor = true;
+        // 
+        // lblMainMaxResults
+        // 
+        lblMainMaxResults.AutoSize = true;
+        lblMainMaxResults.Location = new Point(320, 101);
+        lblMainMaxResults.Name = "lblMainMaxResults";
+        lblMainMaxResults.Text = "Max regels:";
+        // 
+        // nudMainMaxResults
+        // 
+        nudMainMaxResults.Location = new Point(400, 98);
+        nudMainMaxResults.Maximum = new decimal(new int[] { 5000, 0, 0, 0 });
+        nudMainMaxResults.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
+        nudMainMaxResults.Name = "nudMainMaxResults";
+        nudMainMaxResults.Size = new Size(72, 23);
+        nudMainMaxResults.TabIndex = 9;
+        nudMainMaxResults.Value = new decimal(new int[] { 500, 0, 0, 0 });
+        // 
+        // btnExcludeFolders
+        // 
+        btnExcludeFolders.Location = new Point(490, 95);
+        btnExcludeFolders.Name = "btnExcludeFolders";
+        btnExcludeFolders.Size = new Size(220, 27);
+        btnExcludeFolders.TabIndex = 10;
+        btnExcludeFolders.Text = "Mappen uitsluiten van zoeken...";
+        btnExcludeFolders.UseVisualStyleBackColor = true;
+        btnExcludeFolders.Click += btnExcludeFolders_Click;
+        // 
+        // lblExcludedFolderSummary
+        // 
+        lblExcludedFolderSummary.AutoSize = true;
+        lblExcludedFolderSummary.Location = new Point(720, 101);
+        lblExcludedFolderSummary.Name = "lblExcludedFolderSummary";
+        lblExcludedFolderSummary.Text = "Uitgesloten mappen: 0";
+        // 
         // pnlFilters
         // 
         pnlFilters.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        pnlFilters.Location = new Point(8, 96);
+        pnlFilters.Location = new Point(8, 130);
         pnlFilters.Name = "pnlFilters";
         pnlFilters.Size = new Size(1084, 27);
         pnlFilters.TabIndex = 7;
@@ -227,12 +288,12 @@ partial class Form1
         // splitContainer
         // 
         splitContainer.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        splitContainer.Location = new Point(8, 127);
+        splitContainer.Location = new Point(8, 162);
         splitContainer.Name = "splitContainer";
         splitContainer.Orientation = Orientation.Vertical;
         splitContainer.Panel1MinSize = 200;
         splitContainer.Panel2MinSize = 150;
-        splitContainer.Size = new Size(1084, 565);
+        splitContainer.Size = new Size(1084, 530);
         splitContainer.SplitterDistance = 580;
         splitContainer.SplitterWidth = 6;
         splitContainer.TabIndex = 8;
@@ -333,6 +394,12 @@ partial class Form1
         MainMenuStrip = menuStrip1;
         Controls.Add(splitContainer);
         Controls.Add(pnlFilters);
+        Controls.Add(lblExcludedFolderSummary);
+        Controls.Add(btnExcludeFolders);
+        Controls.Add(nudMainMaxResults);
+        Controls.Add(lblMainMaxResults);
+        Controls.Add(chkSearchAttachments);
+        Controls.Add(chkSearchBody);
         Controls.Add(dtpTo);
         Controls.Add(dtpFrom);
         Controls.Add(chkUseDateRange);
@@ -356,6 +423,7 @@ partial class Form1
         splitContainer.Panel2.ResumeLayout(false);
         splitContainer.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)dgvResults).EndInit();
+        ((System.ComponentModel.ISupportInitialize)nudMainMaxResults).EndInit();
         pnlPreviewTop.ResumeLayout(false);
         pnlPreview.ResumeLayout(false);
         pnlPreview.PerformLayout();
@@ -397,4 +465,10 @@ partial class Form1
     private StatusStrip statusStrip1;
     private ToolStripStatusLabel toolStripStatusLabel1;
     private ToolStripProgressBar toolStripProgressBar;
+    private CheckBox chkSearchBody;
+    private CheckBox chkSearchAttachments;
+    private Label lblMainMaxResults;
+    private NumericUpDown nudMainMaxResults;
+    private Button btnExcludeFolders;
+    private Label lblExcludedFolderSummary;
 }

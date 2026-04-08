@@ -9,6 +9,7 @@ public partial class Form1 : Form
     private readonly List<EmailSearchResult> _allResults = new();
     private readonly AppSettings _settings;
     private readonly System.Windows.Forms.Timer _indexRefreshTimer = new();
+    private readonly System.Windows.Forms.Timer _filterDebounceTimer = new() { Interval = 300 };
 
     private CancellationTokenSource? _searchCancellation;
     private CancellationTokenSource? _previewCancellation;
@@ -39,6 +40,15 @@ public partial class Form1 : Form
         dtpFrom.Value = _settings.DateFrom;
         dtpTo.Value = _settings.DateTo;
 
+        chkSearchBody.Checked = _settings.SearchBody;
+        chkSearchAttachments.Checked = _settings.SearchAttachments;
+        nudMainMaxResults.Value = Math.Clamp(_settings.MaxResults, 10, 5000);
+        UpdateExcludedFoldersSummary();
+
+        chkSearchBody.CheckedChanged += (_, _) => { _settings.SearchBody = chkSearchBody.Checked; };
+        chkSearchAttachments.CheckedChanged += (_, _) => { _settings.SearchAttachments = chkSearchAttachments.Checked; };
+        nudMainMaxResults.ValueChanged += (_, _) => { _settings.MaxResults = (int)nudMainMaxResults.Value; };
+
     RefreshHistoryDropdown();
 
         _columnFilterMap = new Dictionary<string, TextBox>
@@ -51,7 +61,8 @@ public partial class Form1 : Form
             [nameof(EmailSearchResult.Recipients)]   = txtColRecipients,
         };
         foreach (var tb in _columnFilterMap.Values)
-            tb.TextChanged += (_, _) => ApplyResultFilter();
+            tb.TextChanged += (_, _) => RestartFilterDebounce();
+        _filterDebounceTimer.Tick += (_, _) => { _filterDebounceTimer.Stop(); ApplyResultFilter(); };
 
         dgvResults.ColumnWidthChanged        += (_, _) => SyncFilterPositions();
         dgvResults.ColumnDisplayIndexChanged += (_, _) => SyncFilterPositions();
@@ -72,8 +83,29 @@ public partial class Form1 : Form
 
     private async void Form1_Load(object sender, EventArgs e)
     {
+        RestoreWindowBounds();
         await RefreshStoresAsync();
         SyncFilterPositions();
+    }
+
+    private void RestoreWindowBounds()
+    {
+        if (_settings.WindowWidth > 0 && _settings.WindowHeight > 0)
+        {
+            var bounds = new Rectangle(_settings.WindowLeft, _settings.WindowTop, _settings.WindowWidth, _settings.WindowHeight);
+            bool visible = Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds));
+            if (visible)
+            {
+                StartPosition = FormStartPosition.Manual;
+                Location = new Point(_settings.WindowLeft, _settings.WindowTop);
+                Size = new Size(_settings.WindowWidth, _settings.WindowHeight);
+            }
+        }
+
+        if (_settings.WindowState == FormWindowState.Maximized)
+        {
+            WindowState = FormWindowState.Maximized;
+        }
     }
 
     private void Form1_FormClosing(object sender, FormClosingEventArgs e)
@@ -81,7 +113,69 @@ public partial class Form1 : Form
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
+        _filterDebounceTimer.Stop();
+        _filterDebounceTimer.Dispose();
+        SaveWindowBounds();
         SaveSettings();
+    }
+
+    private void SaveWindowBounds()
+    {
+        _settings.WindowState = WindowState;
+        if (WindowState == FormWindowState.Normal)
+        {
+            _settings.WindowLeft = Location.X;
+            _settings.WindowTop = Location.Y;
+            _settings.WindowWidth = Size.Width;
+            _settings.WindowHeight = Size.Height;
+        }
+    }
+
+    private void RestartFilterDebounce()
+    {
+        _filterDebounceTimer.Stop();
+        _filterDebounceTimer.Start();
+    }
+
+    private void UpdateExcludedFoldersSummary()
+    {
+        lblExcludedFolderSummary.Text = string.Format(Strings.SettingsLblExcludedFoldersFmt, _settings.ExcludedFolderEntryIds.Count);
+    }
+
+    private async void btnExcludeFolders_Click(object sender, EventArgs e)
+    {
+        var selectedStores = GetSelectedStores();
+        if (selectedStores.Count == 0)
+        {
+            MessageBox.Show(this, Strings.MsgSelectMailbox, Strings.MsgSelectMailboxTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var selectedStoreIds = selectedStores.Select(s => s.StoreId).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        bool sameStoreSelection = selectedStoreIds.Count == _folderTreeStoreIds.Count &&
+            selectedStoreIds.All(id => _folderTreeStoreIds.Contains(id, StringComparer.OrdinalIgnoreCase));
+        var dialogRoots = sameStoreSelection ? _folderRoots : new List<MailboxFolderRoot>();
+
+        using var dialog = new FolderSelectionForm(
+            Strings.FolderExcludeTitle,
+            dialogRoots,
+            _settings.ExcludedFolderEntryIds,
+            async cancellationToken =>
+            {
+                SetBusy(true, Strings.SettingsMsgLoadingFolders);
+                var roots = await OutlookSearcher.GetFolderTreeAsync(selectedStoreIds, cancellationToken);
+                _folderRoots = roots.ToList();
+                _folderTreeStoreIds = selectedStoreIds;
+                SetBusy(false, Strings.StatusReady);
+                return roots;
+            });
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            _settings.ExcludedFolderEntryIds = dialog.GetSelectedEntryIds().ToList();
+            UpdateExcludedFoldersSummary();
+            AppSettingsStore.Save(_settings);
+        }
     }
 
 
@@ -231,6 +325,11 @@ public partial class Form1 : Form
             _availableStores = dlg.AvailableStores;
             _folderRoots = dlg.FolderRoots;
             _folderTreeStoreIds = dlg.FolderTreeStoreIds;
+            // Sync controls that may have changed in settings dialog
+            chkSearchBody.Checked = _settings.SearchBody;
+            chkSearchAttachments.Checked = _settings.SearchAttachments;
+            nudMainMaxResults.Value = Math.Clamp(_settings.MaxResults, 10, 5000);
+            UpdateExcludedFoldersSummary();
             AppSettingsStore.Save(_settings);
                         RefreshHistoryDropdown();
             ApplyStrings();
@@ -315,6 +414,9 @@ public partial class Form1 : Form
         _settings.UseDateRange = chkUseDateRange.Checked;
         _settings.DateFrom = dtpFrom.Value.Date;
         _settings.DateTo = dtpTo.Value.Date;
+        _settings.SearchBody = chkSearchBody.Checked;
+        _settings.SearchAttachments = chkSearchAttachments.Checked;
+        _settings.MaxResults = (int)nudMainMaxResults.Value;
         AppSettingsStore.Save(_settings);
     }
 
@@ -415,9 +517,9 @@ public partial class Form1 : Form
             await OutlookSearcher.BuildPersistentIndexAsync(request, progress, CancellationToken.None);
             toolStripStatusLabel1.Text = Strings.StatusAutoIndexDone;
         }
-        catch
+        catch (Exception ex)
         {
-            // Silent for timer-based refresh.
+            toolStripStatusLabel1.Text = $"{Strings.StatusAutoIndexFailed} {ex.Message}";
         }
         finally
         {
@@ -491,6 +593,11 @@ public partial class Form1 : Form
         btnCancel.Text             = Strings.BtnCancel;
         chkShowPreview.Text        = Strings.ChkShowPreview;
         chkUseDateRange.Text       = Strings.ChkUseDateRange;
+        chkSearchBody.Text         = Strings.SettingsChkSearchBody;
+        chkSearchAttachments.Text  = Strings.SettingsChkSearchAtt;
+        lblMainMaxResults.Text     = Strings.SettingsLblMaxResults;
+        btnExcludeFolders.Text     = Strings.SettingsBtnExcludeFolders;
+        UpdateExcludedFoldersSummary();
 
         // Filter placeholders
         txtColMailbox.PlaceholderText    = Strings.FilterMailbox;

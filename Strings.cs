@@ -50,6 +50,7 @@ internal static class Strings
     public static string StatusCopyFailed      => IsEnglish ? "Copy failed."            : "Kopieren mislukt.";
     public static string StatusAutoIndexDone   => IsEnglish ? "Auto-index updated."     : "Auto-index bijgewerkt.";
     public static string StatusAutoIndexPrefix => IsEnglish ? "Auto-index: "            : "Auto-index: ";
+    public static string StatusAutoIndexFailed => IsEnglish ? "Auto-index failed."       : "Auto-index mislukt.";
     public static string StatusMailboxesFoundFmt  => IsEnglish ? "{0} mailbox(es) found." : "{0} mailbox(en) gevonden.";
     public static string StatusMailboxesFailed    => IsEnglish ? "Loading mailboxes failed." : "Mailboxen laden mislukt.";
 
