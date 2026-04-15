@@ -9,6 +9,7 @@ internal sealed class IndexManagerForm : Form
     private readonly Label _lblIndexState = new();
     private readonly Label _lblInterval = new();
     private readonly CheckBox _chkAutoRefresh = new();
+    private readonly CheckBox _chkIndexOnStartup = new();
     private readonly NumericUpDown _nudInterval = new();
     private readonly ProgressBar _progress = new();
     private readonly Button _btnSelectFolders = new();
@@ -44,6 +45,17 @@ internal sealed class IndexManagerForm : Form
 
         var panel = new Panel { Dock = DockStyle.Fill };
 
+        var bottomPanel = new Panel { Dock = DockStyle.Bottom, Height = 48 };
+        _btnClose.Text = Strings.BtnClose;
+        _btnClose.SetBounds(0, 8, 100, 32);
+        _btnClose.Anchor = AnchorStyles.Right | AnchorStyles.Top;
+        _btnClose.Click += (_, _) => Close();
+        bottomPanel.Controls.Add(_btnClose);
+        bottomPanel.Layout += (_, _) =>
+        {
+            _btnClose.Left = bottomPanel.Width - _btnClose.Width - 12;
+        };
+
         _btnSelectFolders.Text = Strings.IndexBtnSelectFolders;
         _btnSelectFolders.SetBounds(12, 12, 220, 32);
         _btnSelectFolders.Click += async (_, _) => await SelectIncludedFoldersAsync();
@@ -74,15 +86,15 @@ internal sealed class IndexManagerForm : Form
         _nudInterval.SetBounds(290, 66, 80, 24);
         _nudInterval.ValueChanged += (_, _) => _settings.IndexRefreshIntervalMinutes = (int)_nudInterval.Value;
 
+        _chkIndexOnStartup.Text = Strings.IndexChkIndexOnStartup;
+        _chkIndexOnStartup.SetBounds(390, 66, 220, 24);
+        _chkIndexOnStartup.Checked = _settings.IndexOnStartup;
+        _chkIndexOnStartup.CheckedChanged += (_, _) => _settings.IndexOnStartup = _chkIndexOnStartup.Checked;
+
         _progress.Style = ProgressBarStyle.Marquee;
         _progress.Visible = false;
         _progress.SetBounds(12, 110, 720, 22);
         _progress.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-
-        _btnClose.Text = Strings.BtnClose;
-        _btnClose.SetBounds(632, 270, 100, 32);
-        _btnClose.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _btnClose.Click += (_, _) => DialogResult = DialogResult.OK;
 
         panel.Controls.Add(_btnSelectFolders);
         panel.Controls.Add(_btnBuild);
@@ -90,10 +102,11 @@ internal sealed class IndexManagerForm : Form
         panel.Controls.Add(_chkAutoRefresh);
         panel.Controls.Add(_lblInterval);
         panel.Controls.Add(_nudInterval);
+        panel.Controls.Add(_chkIndexOnStartup);
         panel.Controls.Add(_progress);
-        panel.Controls.Add(_btnClose);
 
         Controls.Add(panel);
+        Controls.Add(bottomPanel);
         Controls.Add(_lblIndexState);
         Controls.Add(_lblScope);
 
@@ -187,6 +200,7 @@ internal sealed class IndexManagerForm : Form
         _btnClear.Enabled = enabled;
         _chkAutoRefresh.Enabled = enabled;
         _nudInterval.Enabled = enabled;
+        _chkIndexOnStartup.Enabled = enabled;
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -198,6 +212,7 @@ internal sealed class IndexManagerForm : Form
             return;
         }
 
+        AppSettingsStore.Save(_settings);
         base.OnFormClosing(e);
     }
 }

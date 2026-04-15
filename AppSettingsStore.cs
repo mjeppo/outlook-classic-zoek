@@ -31,6 +31,12 @@ internal sealed class AppSettings
     public int WindowTop { get; set; } = -1;
     public int WindowWidth { get; set; } = -1;
     public int WindowHeight { get; set; } = -1;
+
+    // Kolommen volgorde zoekresultaten (DataPropertyName, in volgorde DisplayIndex)
+    public List<string> ColumnOrder { get; set; } = new();
+
+    // Index bij opstarten opbouwen
+    public bool IndexOnStartup { get; set; } = false;
 }
 
 internal static class AppSettingsStore

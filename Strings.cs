@@ -27,6 +27,10 @@ internal static class Strings
     public static string FilterSubject    => IsEnglish ? "Filter: Subject"     : "Filter: Onderwerp";
     public static string FilterSender     => IsEnglish ? "Filter: Sender"      : "Filter: Afzender";
     public static string FilterRecipients => IsEnglish ? "Filter: Recipients"  : "Filter: Geadresseerde";
+    public static string FilterHasAttachment => IsEnglish ? "Has attachment"   : "Bijlage";
+    public static string ColHasAttachment    => IsEnglish ? "Att."             : "Bijlage";
+    public static string FilterYes           => IsEnglish ? "Yes" : "Ja";
+    public static string FilterNo            => IsEnglish ? "No"  : "Nee";
 
     // --- Preview panel ---
     public static string BtnClosePreview => IsEnglish ? "Close preview" : "Venster sluiten";
@@ -113,6 +117,7 @@ internal static class Strings
     public static string IndexMsgNoMailboxTitle  => IsEnglish ? "No mailboxes"                  : "Geen mailboxen";
     public static string IndexMsgBusy            => IsEnglish ? "Wait for indexing to finish before closing this window." : "Wacht tot de indexering klaar is voordat je dit venster sluit.";
     public static string IndexMsgBusyTitle       => IsEnglish ? "Indexing in progress"          : "Indexering actief";
+    public static string IndexChkIndexOnStartup  => IsEnglish ? "Build index on startup"        : "Indexeren bij opstarten";
 
     // --- Folder selection ---
     public static string FolderCheckAndSave   => IsEnglish ? "Check folders and click Save."  : "Vink mappen aan en klik op Opslaan.";

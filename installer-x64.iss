@@ -1,12 +1,12 @@
 [Setup]
 AppName=Outlook Classic Search
-AppVersion=1.2.0
+AppVersion=1.3.0
 AppPublisher=mjeppo
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567891}
 DefaultDirName={autopf}\Outlook Classic Search
 DefaultGroupName=Outlook Classic Search
 OutputDir=installer-output
-OutputBaseFilename=OutlookClassicSearch-v1.2.0-Setup-x64
+OutputBaseFilename=OutlookClassicSearch-v1.3.0-Setup-x64
 SetupIconFile=ocs_icon_transparant02.ico
 Compression=lzma2/ultra64
 SolidCompression=yes

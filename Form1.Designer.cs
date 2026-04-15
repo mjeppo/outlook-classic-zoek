@@ -43,12 +43,14 @@ partial class Form1
         dtpFrom = new DateTimePicker();
         dtpTo = new DateTimePicker();
         pnlFilters = new Panel();
-        txtColMailbox = new TextBox();
-        txtColFolderPath = new TextBox();
+        btnColMailbox = new Button();
+        btnColFolderPath = new Button();
         txtColDate = new TextBox();
         txtColSubject = new TextBox();
-        txtColSender = new TextBox();
-        txtColRecipients = new TextBox();
+        btnColSender = new Button();
+        btnColRecipients = new Button();
+        btnColHasAttachment = new Button();
+        chkHasAttachment = new CheckBox();
         splitContainer = new SplitContainer();
         dgvResults = new DataGridView();
         pnlPreview = new Panel();
@@ -242,24 +244,27 @@ partial class Form1
         pnlFilters.Name = "pnlFilters";
         pnlFilters.Size = new Size(1084, 27);
         pnlFilters.TabIndex = 7;
-        pnlFilters.Controls.Add(txtColMailbox);
-        pnlFilters.Controls.Add(txtColFolderPath);
+        pnlFilters.Controls.Add(btnColMailbox);
+        pnlFilters.Controls.Add(btnColFolderPath);
         pnlFilters.Controls.Add(txtColDate);
         pnlFilters.Controls.Add(txtColSubject);
-        pnlFilters.Controls.Add(txtColSender);
-        pnlFilters.Controls.Add(txtColRecipients);
+        pnlFilters.Controls.Add(btnColSender);
+        pnlFilters.Controls.Add(btnColRecipients);
+        pnlFilters.Controls.Add(btnColHasAttachment);
         // 
-        // txtColMailbox
+        // btnColMailbox
         // 
-        txtColMailbox.Name = "txtColMailbox";
-        txtColMailbox.PlaceholderText = "Filter: Mailbox";
-        txtColMailbox.TabIndex = 0;
+        btnColMailbox.FlatStyle = FlatStyle.Flat;
+        btnColMailbox.Name = "btnColMailbox";
+        btnColMailbox.TabIndex = 0;
+        btnColMailbox.TextAlign = ContentAlignment.MiddleLeft;
         // 
-        // txtColFolderPath
+        // btnColFolderPath
         // 
-        txtColFolderPath.Name = "txtColFolderPath";
-        txtColFolderPath.PlaceholderText = "Filter: Map";
-        txtColFolderPath.TabIndex = 1;
+        btnColFolderPath.FlatStyle = FlatStyle.Flat;
+        btnColFolderPath.Name = "btnColFolderPath";
+        btnColFolderPath.TabIndex = 1;
+        btnColFolderPath.TextAlign = ContentAlignment.MiddleLeft;
         // 
         // txtColDate
         // 
@@ -273,17 +278,26 @@ partial class Form1
         txtColSubject.PlaceholderText = "Filter: Onderwerp";
         txtColSubject.TabIndex = 3;
         // 
-        // txtColSender
+        // btnColSender
         // 
-        txtColSender.Name = "txtColSender";
-        txtColSender.PlaceholderText = "Filter: Afzender";
-        txtColSender.TabIndex = 4;
+        btnColSender.FlatStyle = FlatStyle.Flat;
+        btnColSender.Name = "btnColSender";
+        btnColSender.TabIndex = 4;
+        btnColSender.TextAlign = ContentAlignment.MiddleLeft;
         // 
-        // txtColRecipients
+        // btnColRecipients
         // 
-        txtColRecipients.Name = "txtColRecipients";
-        txtColRecipients.PlaceholderText = "Filter: Geadresseerde";
-        txtColRecipients.TabIndex = 5;
+        btnColRecipients.FlatStyle = FlatStyle.Flat;
+        btnColRecipients.Name = "btnColRecipients";
+        btnColRecipients.TabIndex = 5;
+        btnColRecipients.TextAlign = ContentAlignment.MiddleLeft;
+        // 
+        // btnColHasAttachment
+        // 
+        btnColHasAttachment.FlatStyle = FlatStyle.Flat;
+        btnColHasAttachment.Name = "btnColHasAttachment";
+        btnColHasAttachment.TabIndex = 6;
+        btnColHasAttachment.TextAlign = ContentAlignment.MiddleLeft;
         // 
         // splitContainer
         // 
@@ -449,12 +463,14 @@ partial class Form1
     private DateTimePicker dtpFrom;
     private DateTimePicker dtpTo;
     private Panel pnlFilters;
-    private TextBox txtColMailbox;
-    private TextBox txtColFolderPath;
+    private Button btnColMailbox;
+    private Button btnColFolderPath;
     private TextBox txtColDate;
     private TextBox txtColSubject;
-    private TextBox txtColSender;
-    private TextBox txtColRecipients;
+    private Button btnColSender;
+    private Button btnColRecipients;
+    private Button btnColHasAttachment;
+    private CheckBox chkHasAttachment; // kept for designer compatibility but unused in UI
     private SplitContainer splitContainer;
     private Panel pnlPreviewTop;
     private DataGridView dgvResults;

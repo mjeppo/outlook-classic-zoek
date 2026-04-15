@@ -34,6 +34,7 @@ internal sealed class EmailSearchResult
     public required string Recipients { get; init; }
     public required string EntryId { get; init; }
     public required string StoreId { get; init; }
+    public bool HasAttachments { get; init; }
 }
 
 internal sealed class MailPreview
@@ -83,6 +84,7 @@ internal sealed class IndexedMailItem
     public required string Body { get; init; }
     public required string AttachmentIndexText { get; init; }
     public DateTime ReceivedTime { get; init; }
+    public bool HasAttachments { get; init; }
 }
 
 internal static class OutlookSearcher
@@ -267,6 +269,7 @@ internal static class OutlookSearcher
                             storeId,
                             SafeString(store.DisplayName),
                             includeSet,
+                            insideIncluded: false,
                             request.SearchBody,
                             request.IncludeAttachments,
                             request.ExcludedAttachmentExtensions,
@@ -290,7 +293,8 @@ internal static class OutlookSearcher
                                     ToRecipients = SafeString(mail.To),
                                     Body = request.SearchBody ? SafeString(mail.Body) : string.Empty,
                                     AttachmentIndexText = attachmentIndexText,
-                                    ReceivedTime = mail.ReceivedTime
+                                    ReceivedTime = mail.ReceivedTime,
+                                    HasAttachments = GetHasAttachments(mail)
                                 });
 
                                 if (items.Count % 50 == 0)
@@ -410,7 +414,8 @@ internal static class OutlookSearcher
                 Sender = item.Sender,
                 Recipients = item.ToRecipients,
                 EntryId = item.EntryId,
-                StoreId = item.StoreId
+                StoreId = item.StoreId,
+                HasAttachments = item.HasAttachments
             };
 
             results.Add(result);
@@ -479,6 +484,7 @@ internal static class OutlookSearcher
                             storeId,
                             SafeString(store.DisplayName),
                             includeSet: null,
+                            insideIncluded: false,
                             criteria.SearchBody,
                             criteria.SearchAttachments,
                             criteria.ExcludedAttachmentExtensions,
@@ -522,7 +528,8 @@ internal static class OutlookSearcher
                                     Sender = SafeString(mail.SenderName),
                                     Recipients = SafeString(mail.To),
                                     EntryId = SafeString(mail.EntryID),
-                                    StoreId = storeId
+                                    StoreId = storeId,
+                                    HasAttachments = GetHasAttachments(mail)
                                 };
 
                                 results.Add(result);
@@ -558,6 +565,7 @@ internal static class OutlookSearcher
         string storeId,
         string mailbox,
         HashSet<string>? includeSet,
+        bool insideIncluded,
         bool searchBody,
         bool searchAttachments,
         IReadOnlySet<string> excludedAttachmentExtensions,
@@ -568,7 +576,9 @@ internal static class OutlookSearcher
         cancellationToken.ThrowIfCancellationRequested();
 
         string currentEntryId = SafeString(folder.EntryID);
-        bool includeFolder = includeSet is null || includeSet.Count == 0 || includeSet.Contains(currentEntryId);
+        // A folder is included if: no includeSet, OR we're inside an already-included subtree,
+        // OR this folder is explicitly in the includeSet.
+        bool includeFolder = insideIncluded || includeSet is null || includeSet.Count == 0 || includeSet.Contains(currentEntryId);
 
         Outlook.Items? items = null;
         Outlook.Folders? children = null;
@@ -634,6 +644,7 @@ internal static class OutlookSearcher
                         storeId,
                         mailbox,
                         includeSet,
+                        insideIncluded || includeFolder,
                         searchBody,
                         searchAttachments,
                         excludedAttachmentExtensions,
@@ -1003,8 +1014,68 @@ internal static class OutlookSearcher
         }
     }
 
-    private static T WithOutlookSession<T>(Func<Outlook.Application, Outlook.NameSpace, T> action)
+    private static bool GetHasAttachments(Outlook.MailItem mail)
     {
+        Outlook.Attachments? attachments = null;
+        try
+        {
+            attachments = mail.Attachments as Outlook.Attachments;
+            if (attachments is null || attachments.Count == 0) return false;
+
+            int count = attachments.Count;
+            for (int i = 1; i <= count; i++)
+            {
+                Outlook.Attachment? att = null;
+                try
+                {
+                    att = attachments[i] as Outlook.Attachment;
+                    if (att is null) continue;
+
+                    // Stap 1: type-filter
+                    // olByValue (1) = echte bijlage, olByReference (4) = gekoppeld bestand
+                    // olEmbeddeditem (5) = ingesloten origineel bericht → overslaan
+                    // olOLE (6) = ingesloten OLE-object → overslaan
+                    var attType = att.Type;
+                    if (attType != NetOffice.OutlookApi.Enums.OlAttachmentType.olByValue &&
+                        attType != NetOffice.OutlookApi.Enums.OlAttachmentType.olByReference)
+                        continue;
+
+                    // Stap 2: bestandsnaam-check — lege naam = geen echte bijlage
+                    string name = string.Empty;
+                    try { name = att.FileName ?? string.Empty; } catch { }
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+
+                    // Stap 3: PR_ATTACH_FLAGS check
+                    // Bit 4 (ATT_MHTML_REF = 4) = inline afbeelding in HTML-body
+                    // (bijv. logo in e-mailhandtekening) → overslaan
+                    try
+                    {
+                        const string prAttachFlags = "http://schemas.microsoft.com/mapi/proptag/0x37140003";
+                        var raw = att.PropertyAccessor.GetProperty(prAttachFlags);
+                        int flags = raw is int i2 ? i2 : Convert.ToInt32(raw);
+                        if ((flags & 4) != 0) continue;
+                    }
+                    catch { /* property niet aanwezig = echte bijlage, doorgaan */ }
+
+                    return true;
+                }
+                catch { /* sla bijlage over bij COM-fout */ }
+                finally
+                {
+                    ReleaseComObject(att);
+                }
+            }
+
+            return false;
+        }
+        catch { return false; }
+        finally
+        {
+            ReleaseComObject(attachments);
+        }
+    }
+
+    private static T WithOutlookSession<T>(Func<Outlook.Application, Outlook.NameSpace, T> action)    {
         Outlook.Application? app = null;
         Outlook.NameSpace? mapi = null;
         try

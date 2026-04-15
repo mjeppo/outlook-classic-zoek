@@ -18,6 +18,8 @@ public partial class Form1 : Form
     private List<string> _folderTreeStoreIds = new();
     private List<StoreListItem> _availableStores = new();
     private Dictionary<string, TextBox> _columnFilterMap = new();
+    private Dictionary<string, Button> _dropdownButtonMap = new();
+    private Dictionary<string, HashSet<string>> _dropdownFilterMap = new();
     private string _sortColumn = nameof(EmailSearchResult.ReceivedTime);
     private bool _sortAscending;
 
@@ -53,19 +55,40 @@ public partial class Form1 : Form
 
         _columnFilterMap = new Dictionary<string, TextBox>
         {
-            [nameof(EmailSearchResult.Mailbox)]      = txtColMailbox,
-            [nameof(EmailSearchResult.FolderPath)]   = txtColFolderPath,
             [nameof(EmailSearchResult.ReceivedTime)] = txtColDate,
             [nameof(EmailSearchResult.Subject)]      = txtColSubject,
-            [nameof(EmailSearchResult.Sender)]       = txtColSender,
-            [nameof(EmailSearchResult.Recipients)]   = txtColRecipients,
+        };
+        _dropdownButtonMap = new Dictionary<string, Button>
+        {
+            [nameof(EmailSearchResult.Mailbox)]        = btnColMailbox,
+            [nameof(EmailSearchResult.FolderPath)]     = btnColFolderPath,
+            [nameof(EmailSearchResult.Sender)]         = btnColSender,
+            [nameof(EmailSearchResult.Recipients)]     = btnColRecipients,
+            [nameof(EmailSearchResult.HasAttachments)] = btnColHasAttachment,
+        };
+        _dropdownFilterMap = new Dictionary<string, HashSet<string>>
+        {
+            [nameof(EmailSearchResult.Mailbox)]        = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.FolderPath)]     = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.Sender)]         = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.Recipients)]     = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.HasAttachments)] = new(StringComparer.OrdinalIgnoreCase),
         };
         foreach (var tb in _columnFilterMap.Values)
             tb.TextChanged += (_, _) => RestartFilterDebounce();
+        foreach (var (prop, btn) in _dropdownButtonMap)
+        {
+            string capturedProp = prop;
+            Button capturedBtn = btn;
+            btn.Click += (_, _) => ShowDropdownFilter(capturedBtn, capturedProp);
+        }
         _filterDebounceTimer.Tick += (_, _) => { _filterDebounceTimer.Stop(); ApplyResultFilter(); };
 
+        // Button labels depend on _dropdownButtonMap being initialized, so update them now
+        UpdateAllDropdownButtonTexts();
+
         dgvResults.ColumnWidthChanged        += (_, _) => SyncFilterPositions();
-        dgvResults.ColumnDisplayIndexChanged += (_, _) => SyncFilterPositions();
+        dgvResults.ColumnDisplayIndexChanged += (_, _) => { SyncFilterPositions(); SaveColumnOrder(); };
         dgvResults.Scroll                    += (_, _) => SyncFilterPositions();
         splitContainer.SplitterMoved         += (_, _) => SyncFilterPositions();
         Resize                               += (_, _) => SyncFilterPositions();
@@ -84,8 +107,11 @@ public partial class Form1 : Form
     private async void Form1_Load(object sender, EventArgs e)
     {
         RestoreWindowBounds();
+        RestoreColumnOrder();
         await RefreshStoresAsync();
         SyncFilterPositions();
+        if (_settings.IndexOnStartup)
+            _ = TryRunAutoIndexRefreshAsync(force: true);
     }
 
     private void RestoreWindowBounds()
@@ -218,6 +244,7 @@ public partial class Form1 : Form
         _searchCancellation = new CancellationTokenSource();
         _allResults.Clear();
         _visibleResults.Clear();
+        ClearDropdownFilters();
 
         try
         {
@@ -232,7 +259,10 @@ public partial class Form1 : Form
             });
             var results = await OutlookSearcher.SearchAsync(criteria, progress, resultProgress, _searchCancellation.Token);
 
-            ApplyResultFilter();
+            // resultProgress callbacks are posted async to the UI message queue.
+            // BeginInvoke ensures ApplyResultFilter runs after all pending callbacks have drained,
+            // so _allResults is fully populated and the sort is correctly applied.
+            BeginInvoke(ApplyResultFilter);
 
             toolStripStatusLabel1.Text = string.Format(Strings.StatusSearchDoneFmt, results.Count);
             SaveSettings();
@@ -417,6 +447,7 @@ public partial class Form1 : Form
         _settings.SearchBody = chkSearchBody.Checked;
         _settings.SearchAttachments = chkSearchAttachments.Checked;
         _settings.MaxResults = (int)nudMainMaxResults.Value;
+        SaveColumnOrder();
         AppSettingsStore.Save(_settings);
     }
 
@@ -480,9 +511,9 @@ public partial class Form1 : Form
         cmbQuery.Text = current;
     }
 
-    private async Task TryRunAutoIndexRefreshAsync()
+    private async Task TryRunAutoIndexRefreshAsync(bool force = false)
     {
-        if (_isAutoIndexRunning || !_settings.IndexAutoRefreshEnabled)
+        if (_isAutoIndexRunning || (!force && !_settings.IndexAutoRefreshEnabled))
         {
             return;
         }
@@ -495,7 +526,7 @@ public partial class Form1 : Form
 
         var current = PersistentIndexStore.Load();
         int minutes = Math.Clamp(_settings.IndexRefreshIntervalMinutes, 5, 1440);
-        if (current is not null && current.BuiltAtUtc > DateTime.UtcNow.AddMinutes(-minutes))
+        if (!force && current is not null && current.BuiltAtUtc > DateTime.UtcNow.AddMinutes(-minutes))
         {
             return;
         }
@@ -575,6 +606,17 @@ public partial class Form1 : Form
             SortMode = DataGridViewColumnSortMode.Programmatic,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         });
+        dgvResults.Columns.Add(new DataGridViewCheckBoxColumn
+        {
+            DataPropertyName = nameof(EmailSearchResult.HasAttachments),
+            HeaderText = Strings.ColHasAttachment,
+            Width = 60,
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.Programmatic,
+            FalseValue = false,
+            TrueValue = true,
+            ThreeState = false
+        });
 
         UpdateSortGlyphs();
     }
@@ -599,13 +641,12 @@ public partial class Form1 : Form
         btnExcludeFolders.Text     = Strings.SettingsBtnExcludeFolders;
         UpdateExcludedFoldersSummary();
 
-        // Filter placeholders
-        txtColMailbox.PlaceholderText    = Strings.FilterMailbox;
-        txtColFolderPath.PlaceholderText = Strings.FilterFolder;
-        txtColDate.PlaceholderText       = Strings.FilterDate;
-        txtColSubject.PlaceholderText    = Strings.FilterSubject;
-        txtColSender.PlaceholderText     = Strings.FilterSender;
-        txtColRecipients.PlaceholderText = Strings.FilterRecipients;
+        // Filter placeholders (TextBox filters)
+        txtColDate.PlaceholderText    = Strings.FilterDate;
+        txtColSubject.PlaceholderText = Strings.FilterSubject;
+
+        // Dropdown filter button labels
+        UpdateAllDropdownButtonTexts();
 
         // Preview panel
         btnClosePreview.Text = Strings.BtnClosePreview;
@@ -620,12 +661,13 @@ public partial class Form1 : Form
         {
             col.HeaderText = col.DataPropertyName switch
             {
-                nameof(EmailSearchResult.Mailbox)      => Strings.ColMailbox,
-                nameof(EmailSearchResult.FolderPath)   => Strings.ColFolder,
-                nameof(EmailSearchResult.ReceivedTime) => Strings.ColDate,
-                nameof(EmailSearchResult.Subject)      => Strings.ColSubject,
-                nameof(EmailSearchResult.Sender)       => Strings.ColSender,
-                nameof(EmailSearchResult.Recipients)   => Strings.ColRecipients,
+                nameof(EmailSearchResult.Mailbox)        => Strings.ColMailbox,
+                nameof(EmailSearchResult.FolderPath)     => Strings.ColFolder,
+                nameof(EmailSearchResult.ReceivedTime)   => Strings.ColDate,
+                nameof(EmailSearchResult.Subject)        => Strings.ColSubject,
+                nameof(EmailSearchResult.Sender)         => Strings.ColSender,
+                nameof(EmailSearchResult.Recipients)     => Strings.ColRecipients,
+                nameof(EmailSearchResult.HasAttachments) => Strings.ColHasAttachment,
                 _ => col.HeaderText
             };
         }
@@ -655,11 +697,12 @@ public partial class Form1 : Form
 
         Func<EmailSearchResult, object> keySelector = _sortColumn switch
         {
-            nameof(EmailSearchResult.Mailbox) => r => r.Mailbox,
-            nameof(EmailSearchResult.FolderPath) => r => r.FolderPath,
-            nameof(EmailSearchResult.Subject) => r => r.Subject,
-            nameof(EmailSearchResult.Sender) => r => r.Sender,
-            nameof(EmailSearchResult.Recipients) => r => r.Recipients,
+            nameof(EmailSearchResult.Mailbox)        => r => r.Mailbox,
+            nameof(EmailSearchResult.FolderPath)     => r => r.FolderPath,
+            nameof(EmailSearchResult.Subject)        => r => r.Subject,
+            nameof(EmailSearchResult.Sender)         => r => r.Sender,
+            nameof(EmailSearchResult.Recipients)     => r => r.Recipients,
+            nameof(EmailSearchResult.HasAttachments) => r => r.HasAttachments,
             _ => r => r.ReceivedTime
         };
 
@@ -728,41 +771,217 @@ public partial class Form1 : Form
     private bool MatchesResultFilter(EmailSearchResult result)
     {
         var comparison = StringComparison.OrdinalIgnoreCase;
+
+        // TextBox filters (Datum, Onderwerp)
         foreach (var (prop, tb) in _columnFilterMap)
         {
             string f = tb.Text.Trim();
             if (string.IsNullOrEmpty(f)) continue;
             string value = prop switch
             {
-                nameof(EmailSearchResult.Mailbox)      => result.Mailbox,
-                nameof(EmailSearchResult.FolderPath)   => result.FolderPath,
                 nameof(EmailSearchResult.ReceivedTime) => result.ReceivedTime.ToString("yyyy-MM-dd HH:mm"),
                 nameof(EmailSearchResult.Subject)      => result.Subject,
-                nameof(EmailSearchResult.Sender)       => result.Sender,
-                nameof(EmailSearchResult.Recipients)   => result.Recipients,
                 _ => string.Empty
             };
             if (!value.Contains(f, comparison)) return false;
         }
+
+        // Dropdown multi-select filters
+        foreach (var (prop, selected) in _dropdownFilterMap)
+        {
+            if (selected.Count == 0) continue;
+
+            if (prop == nameof(EmailSearchResult.HasAttachments))
+            {
+                // Selected values are localised "Ja"/"Nee" strings
+                bool wantYes = selected.Contains(Strings.FilterYes);
+                bool wantNo  = selected.Contains(Strings.FilterNo);
+                if (wantYes && !wantNo  && !result.HasAttachments) return false;
+                if (!wantYes && wantNo  &&  result.HasAttachments) return false;
+                // both selected = no filter
+                continue;
+            }
+
+            string value = prop switch
+            {
+                nameof(EmailSearchResult.Mailbox)    => result.Mailbox,
+                nameof(EmailSearchResult.FolderPath) => result.FolderPath,
+                nameof(EmailSearchResult.Sender)     => result.Sender,
+                nameof(EmailSearchResult.Recipients) => result.Recipients,
+                _ => string.Empty
+            };
+            if (!selected.Contains(value, StringComparer.OrdinalIgnoreCase)) return false;
+        }
+
         return true;
     }
 
     private void SyncFilterPositions()
     {
-        if (_columnFilterMap.Count == 0) return;
+        if (_columnFilterMap.Count == 0 && _dropdownButtonMap.Count == 0) return;
         foreach (DataGridViewColumn col in dgvResults.Columns)
         {
-            if (!_columnFilterMap.TryGetValue(col.DataPropertyName, out var tb)) continue;
             var rect = dgvResults.GetColumnDisplayRectangle(col.Index, false);
-            if (!col.Visible || rect.Width == 0)
+            bool colVisible = col.Visible && rect.Width > 0;
+
+            if (_columnFilterMap.TryGetValue(col.DataPropertyName, out var tb))
             {
-                tb.Visible = false;
+                if (!colVisible) tb.Visible = false;
+                else { tb.Visible = true; tb.SetBounds(rect.X, 0, rect.Width, pnlFilters.Height); }
             }
-            else
+
+            if (_dropdownButtonMap.TryGetValue(col.DataPropertyName, out var btn))
             {
-                tb.Visible = true;
-                tb.SetBounds(rect.X, 0, rect.Width, pnlFilters.Height);
+                if (!colVisible) btn.Visible = false;
+                else { btn.Visible = true; btn.SetBounds(rect.X, 0, rect.Width, pnlFilters.Height); }
             }
+        }
+    }
+
+    private void ShowDropdownFilter(Button anchor, string columnProp)
+    {
+        if (!_dropdownFilterMap.TryGetValue(columnProp, out var selected))
+        {
+            selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _dropdownFilterMap[columnProp] = selected;
+        }
+
+        List<string> values;
+        if (columnProp == nameof(EmailSearchResult.HasAttachments))
+        {
+            values = new List<string> { Strings.FilterYes, Strings.FilterNo };
+        }
+        else
+        {
+            Func<EmailSearchResult, string> getValue = columnProp switch
+            {
+                nameof(EmailSearchResult.Mailbox)    => r => r.Mailbox,
+                nameof(EmailSearchResult.FolderPath) => r => r.FolderPath,
+                nameof(EmailSearchResult.Sender)     => r => r.Sender,
+                nameof(EmailSearchResult.Recipients) => r => r.Recipients,
+                _ => r => string.Empty
+            };
+
+            values = _allResults
+                .Select(getValue)
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(v => v)
+                .ToList();
+        }
+
+        var clb = new CheckedListBox
+        {
+            CheckOnClick = true,
+            IntegralHeight = false,
+            BackColor = AppTheme.Surface,
+            ForeColor = AppTheme.TextPrimary,
+            BorderStyle = BorderStyle.None,
+            HorizontalScrollbar = true,
+        };
+        clb.Items.AddRange(values.ToArray<object>());
+
+        // Dynamic size: measure widest item text, apply min/max
+        int itemH = clb.ItemHeight > 0 ? clb.ItemHeight : 18;
+        int measuredW = MeasureListWidth(clb, values);
+        int popupW = Math.Clamp(measuredW, 120, 480);
+        int popupH = Math.Clamp(values.Count * itemH + 4, 60, 320);
+        clb.Size = new Size(popupW, popupH);
+
+        // Apply checked state
+        for (int i = 0; i < clb.Items.Count; i++)
+        {
+            if (selected.Contains((string)clb.Items[i]))
+                clb.SetItemChecked(i, true);
+        }
+
+        var host = new ToolStripControlHost(clb)
+        {
+            Padding = new Padding(0),
+            Margin = new Padding(0),
+            AutoSize = false,
+            Size = clb.Size
+        };
+        var popup = new ToolStripDropDown
+        {
+            AutoSize = false,
+            Padding = new Padding(1),
+        };
+        popup.Items.Add(host);
+        popup.Width  = clb.Width + 2;
+        popup.Height = clb.Height + 2;
+
+        clb.ItemCheck += (_, e) =>
+        {
+            string item = (string)clb.Items[e.Index];
+            if (e.NewValue == CheckState.Checked) selected.Add(item);
+            else selected.Remove(item);
+            UpdateDropdownButtonText(columnProp, anchor);
+            RestartFilterDebounce();
+        };
+
+        popup.Show(anchor, new Point(0, anchor.Height));
+    }
+
+    private static int MeasureListWidth(CheckedListBox clb, IList<string> values)
+    {
+        // Checkbox width (~20px) + text + padding
+        const int checkboxW = 22;
+        const int paddingW  = 12;
+        if (values.Count == 0) return 120;
+        using var g = clb.CreateGraphics();
+        float maxW = values.Max(v => g.MeasureString(v, clb.Font).Width);
+        return (int)Math.Ceiling(maxW) + checkboxW + paddingW;
+    }
+
+    private void UpdateDropdownButtonText(string columnProp, Button btn)
+    {
+        string label = columnProp switch
+        {
+            nameof(EmailSearchResult.Mailbox)        => Strings.ColMailbox,
+            nameof(EmailSearchResult.FolderPath)     => Strings.ColFolder,
+            nameof(EmailSearchResult.Sender)         => Strings.ColSender,
+            nameof(EmailSearchResult.Recipients)     => Strings.ColRecipients,
+            nameof(EmailSearchResult.HasAttachments) => Strings.ColHasAttachment,
+            _ => columnProp
+        };
+        int count = _dropdownFilterMap.TryGetValue(columnProp, out var sel) ? sel.Count : 0;
+        btn.Text = count > 0 ? $"{label} ({count}) \u25be" : $"{label} \u25be";
+    }
+
+    private void UpdateAllDropdownButtonTexts()
+    {
+        foreach (var (prop, btn) in _dropdownButtonMap)
+            UpdateDropdownButtonText(prop, btn);
+    }
+
+    private void ClearDropdownFilters()
+    {
+        foreach (var sel in _dropdownFilterMap.Values)
+            sel.Clear();
+        UpdateAllDropdownButtonTexts();
+    }
+
+    private void SaveColumnOrder()
+    {
+        _settings.ColumnOrder = dgvResults.Columns
+            .Cast<DataGridViewColumn>()
+            .OrderBy(c => c.DisplayIndex)
+            .Select(c => c.DataPropertyName)
+            .ToList();
+    }
+
+    private void RestoreColumnOrder()
+    {
+        var order = _settings.ColumnOrder;
+        if (order.Count == 0) return;
+        for (int i = 0; i < order.Count; i++)
+        {
+            var col = dgvResults.Columns
+                .Cast<DataGridViewColumn>()
+                .FirstOrDefault(c => c.DataPropertyName == order[i]);
+            if (col is not null && col.DisplayIndex != i)
+                col.DisplayIndex = i;
         }
     }
 
