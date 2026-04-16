@@ -1,6 +1,6 @@
 param(
 	[ValidateSet("x86", "x64", "both")]
-	[string]$Architecture = "both",
+	[string]$Architecture = "x64",
 	[switch]$MakeInstaller
 )
 
@@ -11,7 +11,8 @@ $ScriptDir = $PSScriptRoot
 function Publish-Target([string]$Rid) {
 	$outDir = "bin/Release/net8.0-windows/$Rid/publish"
 	Write-Host "Publishing $Rid to $outDir ..."
-	dotnet publish -c Release -r $Rid --self-contained true /p:PublishSingleFile=false -p:PublishDir="$outDir/"
+	dotnet publish -c Release -r $Rid --self-contained false -p:PublishDir="$outDir/"
+	if ($LASTEXITCODE -ne 0) { throw "dotnet publish mislukt voor $Rid (exit $LASTEXITCODE)" }
 }
 
 function Build-Installer([string]$IssFile) {

@@ -33,4 +33,45 @@ Name: "{userprograms}\Verwijderen"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\Outlook Classic Search"; Filename: "{app}\OutlookClassicSearch.exe"; Tasks: desktopicon
 
 [Run]
+; Installeer .NET 8 Desktop Runtime als die nog niet aanwezig is
+Filename: "{tmp}\dotnet-installer.exe"; Parameters: "/install /quiet /norestart"; \
+  StatusMsg: ".NET 8 Desktop Runtime installeren..."; \
+  Check: NeedsDotNet8; Flags: waituntilterminated
+
 Filename: "{app}\OutlookClassicSearch.exe"; Description: "Outlook Classic Search starten"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Controleer of .NET 8.x Desktop Runtime (x86) aanwezig is
+function NeedsDotNet8: Boolean;
+var
+  keyBase: String;
+  i: Integer;
+  subKey: String;
+begin
+  Result := True;
+  keyBase := 'SOFTWARE\dotnet\Setup\InstalledVersions\x86\sharedfx\Microsoft.WindowsDesktop.App';
+  i := 0;
+  while RegEnumKeyEx(HKLM, keyBase, i, subKey, 0) do
+  begin
+    if Copy(subKey, 1, 2) = '8.' then
+    begin
+      Result := False;
+      Exit;
+    end;
+    Inc(i);
+  end;
+end;
+
+procedure InitializeWizard;
+var
+  url: String;
+  dest: String;
+begin
+  if NeedsDotNet8 then
+  begin
+    url := 'https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0/latest/windowsdesktop-runtime-win-x86.exe';
+    dest := ExpandConstant('{tmp}\dotnet-installer.exe');
+    idpAddFile(url, dest);
+    idpDownloadAfter(wpReady);
+  end;
+end;
