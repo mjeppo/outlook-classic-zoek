@@ -33,49 +33,34 @@ Name: "{userprograms}\Verwijderen"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\Outlook Classic Search"; Filename: "{app}\OutlookClassicSearch.exe"; Tasks: desktopicon
 
 [Run]
-; Installeer .NET 8 Desktop Runtime als die nog niet aanwezig is
-Filename: "{tmp}\dotnet-installer.exe"; Parameters: "/install /quiet /norestart"; \
-  StatusMsg: ".NET 8 Desktop Runtime installeren..."; \
-  Check: NeedsDotNet8; Flags: waituntilterminated
-
 Filename: "{app}\OutlookClassicSearch.exe"; Description: "Outlook Classic Search starten"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// Controleer of .NET 8.x Desktop Runtime aanwezig is via de register-sleutel
-// die de .NET installer zet onder HKLM\SOFTWARE\dotnet\Setup\InstalledVersions
 function NeedsDotNet8: Boolean;
 var
-  keyBase: String;
-  i: Integer;
-  subKey: String;
-  version: String;
+  FindRec: TFindRec;
 begin
-  Result := True; // Standaard: installatie nodig
-  keyBase := 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App';
-  i := 0;
-  // Enumerate subkeys (elke geinstalleerde versie is een subkey, bijv. "8.0.14")
-  while RegEnumKeyEx(HKLM64, keyBase, i, subKey, 0) do
+  Result := True;
+  if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\8.*'), FindRec) then
   begin
-    if Copy(subKey, 1, 2) = '8.' then
-    begin
-      Result := False; // .NET 8 gevonden
-      Exit;
-    end;
-    Inc(i);
+    Result := False;
+    FindClose(FindRec);
   end;
 end;
 
-// Download de .NET 8 Desktop Runtime installer als die nodig is
-procedure InitializeWizard;
+function InitializeSetup: Boolean;
 var
-  url: String;
-  dest: String;
+  ErrorCode: Integer;
 begin
+  Result := True;
   if NeedsDotNet8 then
   begin
-    url := 'https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0/latest/windowsdesktop-runtime-win-x64.exe';
-    dest := ExpandConstant('{tmp}\dotnet-installer.exe');
-    idpAddFile(url, dest);
-    idpDownloadAfter(wpReady);
+    if MsgBox('.NET 8 Desktop Runtime (x64) is niet gevonden op dit systeem.' + #13#10 +
+              'Installeer eerst .NET 8 Desktop Runtime via dotnet.microsoft.com.' + #13#10#13#10 +
+              'Wil je de downloadpagina nu openen?',
+              mbConfirmation, MB_YESNO) = IDYES then
+      ShellExec('open', 'https://dotnet.microsoft.com/en-us/download/dotnet/8.0/runtime',
+                '', '', SW_SHOW, ewNoWait, ErrorCode);
+    Result := False;
   end;
 end;
