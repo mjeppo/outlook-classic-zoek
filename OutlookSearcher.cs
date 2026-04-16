@@ -69,6 +69,7 @@ internal sealed class IndexBuildRequest
     public bool SearchBody { get; init; }
     public bool IncludeAttachments { get; init; }
     public IReadOnlySet<string> ExcludedAttachmentExtensions { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    public bool ForceRebuild { get; init; }
 }
 
 internal sealed class IndexedMailItem
@@ -84,6 +85,7 @@ internal sealed class IndexedMailItem
     public required string Body { get; init; }
     public required string AttachmentIndexText { get; init; }
     public DateTime ReceivedTime { get; init; }
+    public DateTime LastModificationTime { get; init; }
     public bool HasAttachments { get; init; }
 }
 
@@ -226,7 +228,7 @@ internal static class OutlookSearcher
         {
             var selectedStores = new HashSet<string>(request.StoreIds, StringComparer.OrdinalIgnoreCase);
             var includeSet = new HashSet<string>(request.IncludedFolderEntryIds, StringComparer.OrdinalIgnoreCase);
-            var items = new List<IndexedMailItem>();
+            var allItems = new List<IndexedMailItem>();
 
             Outlook.Application? app = null;
             Outlook.NameSpace? mapi = null;
@@ -246,23 +248,23 @@ internal static class OutlookSearcher
                     try
                     {
                         store = stores[i] as Outlook.Store;
-                        if (store is null)
-                        {
-                            continue;
-                        }
+                        if (store is null) continue;
 
                         string storeId = SafeString(store.StoreID);
-                        if (selectedStores.Count > 0 && !selectedStores.Contains(storeId))
-                        {
-                            continue;
-                        }
+                        if (selectedStores.Count > 0 && !selectedStores.Contains(storeId)) continue;
 
                         progress?.Report($"Indexeren mailbox: {store.DisplayName}");
                         root = store.GetRootFolder();
-                        if (root is null)
-                        {
-                            continue;
-                        }
+                        if (root is null) continue;
+
+                        // Load existing per-store index for delta comparison (skip if ForceRebuild)
+                        var existingStore = request.ForceRebuild ? null : PersistentIndexStore.LoadForStore(storeId);
+                        var existingByEntryId = existingStore?.Items
+                            .ToDictionary(x => x.EntryId, StringComparer.OrdinalIgnoreCase)
+                            ?? new Dictionary<string, IndexedMailItem>(StringComparer.OrdinalIgnoreCase);
+
+                        var storeItems = new List<IndexedMailItem>();
+                        int reuseCount = 0;
 
                         ScanFolders(
                             root,
@@ -277,33 +279,60 @@ internal static class OutlookSearcher
                             cancellationToken,
                             (mail, folder) =>
                             {
+                                string entryId = SafeString(mail.EntryID);
+
+                                // Try delta: reuse cached entry if item hasn't changed
+                                DateTime lastMod = DateTime.MinValue;
+                                try { lastMod = mail.LastModificationTime; } catch { }
+
+                                if (lastMod != DateTime.MinValue &&
+                                    existingByEntryId.TryGetValue(entryId, out var cached) &&
+                                    cached.LastModificationTime == lastMod)
+                                {
+                                    storeItems.Add(cached);
+                                    reuseCount++;
+                                    if (storeItems.Count % 50 == 0)
+                                        progress?.Report($"{storeItems.Count} items ({reuseCount} ongewijzigd)...");
+                                    return false;
+                                }
+
+                                // Full index for new or changed items
                                 string attachmentIndexText = request.IncludeAttachments
                                     ? BuildAttachmentIndex(mail, request.ExcludedAttachmentExtensions, includeContent: true)
                                     : string.Empty;
 
-                                items.Add(new IndexedMailItem
+                                storeItems.Add(new IndexedMailItem
                                 {
                                     Mailbox = SafeString(store.DisplayName),
                                     StoreId = storeId,
                                     FolderPath = SafeString(folder.FolderPath),
                                     FolderEntryId = SafeString(folder.EntryID),
-                                    EntryId = SafeString(mail.EntryID),
+                                    EntryId = entryId,
                                     Subject = SafeString(mail.Subject),
                                     Sender = SafeString(mail.SenderName),
                                     ToRecipients = SafeString(mail.To),
                                     Body = request.SearchBody ? SafeString(mail.Body) : string.Empty,
                                     AttachmentIndexText = attachmentIndexText,
                                     ReceivedTime = mail.ReceivedTime,
+                                    LastModificationTime = lastMod,
                                     HasAttachments = GetHasAttachments(mail)
                                 });
 
-                                if (items.Count % 50 == 0)
-                                {
-                                    progress?.Report($"{items.Count} items verwerkt...");
-                                }
+                                if (storeItems.Count % 50 == 0)
+                                    progress?.Report($"{storeItems.Count} items ({reuseCount} ongewijzigd)...");
 
                                 return false;
                             });
+
+                        // Save per-store index immediately after scanning this mailbox
+                        PersistentIndexStore.SaveForStore(storeId, new PerStoreSearchIndex
+                        {
+                            StoreId = storeId,
+                            BuiltAtUtc = DateTime.UtcNow,
+                            Items = storeItems
+                        });
+
+                        allItems.AddRange(storeItems);
                     }
                     finally
                     {
@@ -317,11 +346,10 @@ internal static class OutlookSearcher
                     BuiltAtUtc = DateTime.UtcNow,
                     IncludedFolderEntryIds = includeSet.ToList(),
                     IncludedStoreIds = selectedStores.ToList(),
-                    Items = items
+                    Items = allItems
                 };
 
-                PersistentIndexStore.Save(index);
-                progress?.Report($"Klaar. {items.Count} items geindexeerd.");
+                progress?.Report($"Klaar. {allItems.Count} items geindexeerd.");
                 return index;
             }
             finally
@@ -1016,6 +1044,16 @@ internal static class OutlookSearcher
 
     private static bool GetHasAttachments(Outlook.MailItem mail)
     {
+        // Quick check via PR_HASATTACH (0x0E1B000B) — avoids iterating attachments when there are none
+        try
+        {
+            const string prHasAttach = "http://schemas.microsoft.com/mapi/proptag/0x0E1B000B";
+            var val = mail.PropertyAccessor.GetProperty(prHasAttach);
+            if (val is bool b && !b) return false;
+            if (val is int iv && iv == 0) return false;
+        }
+        catch { /* Property not available, proceed with detailed check */ }
+
         Outlook.Attachments? attachments = null;
         try
         {

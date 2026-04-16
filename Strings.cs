@@ -106,7 +106,8 @@ internal static class Strings
     public static string IndexStateFmt           => IsEnglish ? "Index: {0} items, last: {1}"  : "Index: {0} items, laatst: {1}";
     public static string IndexBuildProgressFmt   => IsEnglish ? "Index: {0}"                   : "Index: {0}";
     public static string IndexBtnSelectFolders   => IsEnglish ? "Choose folders for index"     : "Mappen voor index kiezen";
-    public static string IndexBtnRefresh         => IsEnglish ? "Refresh index now"             : "Index nu verversen";
+    public static string IndexBtnRefresh         => IsEnglish ? "Refresh index"                 : "Index verversen";
+    public static string IndexBtnRebuild         => IsEnglish ? "Rebuild index"                 : "Index opnieuw opbouwen";
     public static string IndexBtnClear           => IsEnglish ? "Delete index"                  : "Index verwijderen";
     public static string IndexChkAutoRefresh     => IsEnglish ? "Auto refresh"                  : "Automatisch verversen";
     public static string IndexLblInterval        => IsEnglish ? "Interval (min):"               : "Interval (min):";

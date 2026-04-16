@@ -13,12 +13,15 @@ internal sealed class IndexManagerForm : Form
     private readonly NumericUpDown _nudInterval = new();
     private readonly ProgressBar _progress = new();
     private readonly Button _btnSelectFolders = new();
-    private readonly Button _btnBuild = new();
+    private readonly Button _btnRefresh = new();
+    private readonly Button _btnRebuild = new();
+    private readonly Button _btnCancel = new();
     private readonly Button _btnClear = new();
     private readonly Button _btnClose = new();
 
     private List<MailboxFolderRoot> _roots = new();
     private bool _isBuildingIndex;
+    private CancellationTokenSource? _buildCts;
 
     public IndexManagerForm(IReadOnlyList<StoreListItem> selectedStores, AppSettings settings, IReadOnlyList<MailboxFolderRoot> preloadedRoots)
     {
@@ -60,12 +63,25 @@ internal sealed class IndexManagerForm : Form
         _btnSelectFolders.SetBounds(12, 12, 220, 32);
         _btnSelectFolders.Click += async (_, _) => await SelectIncludedFoldersAsync();
 
-        _btnBuild.Text = Strings.IndexBtnRefresh;
-        _btnBuild.SetBounds(240, 12, 180, 32);
-        _btnBuild.Click += async (_, _) => await BuildIndexAsync();
+        _btnRefresh.Text = Strings.IndexBtnRefresh;
+        _btnRefresh.SetBounds(240, 12, 160, 32);
+        _btnRefresh.Click += async (_, _) => await BuildIndexAsync(forceRebuild: false);
+
+        _btnRebuild.Text = Strings.IndexBtnRebuild;
+        _btnRebuild.SetBounds(408, 12, 180, 32);
+        _btnRebuild.Click += async (_, _) => await BuildIndexAsync(forceRebuild: true);
+
+        _btnCancel.Text = Strings.BtnCancel;
+        _btnCancel.SetBounds(240, 12, 348, 32);
+        _btnCancel.Visible = false;
+        _btnCancel.Click += (_, _) =>
+        {
+            _buildCts?.Cancel();
+            _btnCancel.Enabled = false;
+        };
 
         _btnClear.Text = Strings.IndexBtnClear;
-        _btnClear.SetBounds(428, 12, 150, 32);
+        _btnClear.SetBounds(596, 12, 130, 32);
         _btnClear.Click += (_, _) =>
         {
             PersistentIndexStore.Clear();
@@ -97,7 +113,9 @@ internal sealed class IndexManagerForm : Form
         _progress.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
 
         panel.Controls.Add(_btnSelectFolders);
-        panel.Controls.Add(_btnBuild);
+        panel.Controls.Add(_btnRefresh);
+        panel.Controls.Add(_btnRebuild);
+        panel.Controls.Add(_btnCancel);
         panel.Controls.Add(_btnClear);
         panel.Controls.Add(_chkAutoRefresh);
         panel.Controls.Add(_lblInterval);
@@ -111,7 +129,7 @@ internal sealed class IndexManagerForm : Form
         Controls.Add(_lblScope);
 
         AppTheme.Apply(this);
-        AppTheme.ApplyPrimaryStyle(_btnBuild);
+        AppTheme.ApplyPrimaryStyle(_btnRefresh);
 
         Shown += (_, _) => LoadData();
     }
@@ -151,7 +169,7 @@ internal sealed class IndexManagerForm : Form
         }
     }
 
-    private async Task BuildIndexAsync()
+    private async Task BuildIndexAsync(bool forceRebuild = false)
     {
         if (_selectedStores.Count == 0)
         {
@@ -160,8 +178,13 @@ internal sealed class IndexManagerForm : Form
         }
 
         _isBuildingIndex = true;
+        _buildCts = new CancellationTokenSource();
         _btnClose.Enabled = false;
         _progress.Visible = true;
+        _btnRefresh.Visible = false;
+        _btnRebuild.Visible = false;
+        _btnCancel.Visible = true;
+        _btnCancel.Enabled = true;
         ToggleButtons(false);
 
         try
@@ -172,12 +195,17 @@ internal sealed class IndexManagerForm : Form
                 IncludedFolderEntryIds = _settings.IndexIncludedFolderEntryIds,
                 SearchBody = _settings.SearchBody,
                 IncludeAttachments = _settings.SearchAttachments,
-                ExcludedAttachmentExtensions = AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw)
+                ExcludedAttachmentExtensions = AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw),
+                ForceRebuild = forceRebuild
             };
 
             var progress = new Progress<string>(text => _lblIndexState.Text = string.Format(Strings.IndexBuildProgressFmt, text));
-            var built = await OutlookSearcher.BuildPersistentIndexAsync(request, progress, CancellationToken.None);
+            var built = await OutlookSearcher.BuildPersistentIndexAsync(request, progress, _buildCts.Token);
             _lblIndexState.Text = string.Format(Strings.IndexStateFmt, built.Items.Count, built.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+        }
+        catch (OperationCanceledException)
+        {
+            _lblIndexState.Text = IsEnglish ? "Indexing cancelled." : "Indexeren afgebroken.";
         }
         catch (Exception ex)
         {
@@ -185,18 +213,26 @@ internal sealed class IndexManagerForm : Form
         }
         finally
         {
+            _buildCts.Dispose();
+            _buildCts = null;
             _isBuildingIndex = false;
             _btnClose.Enabled = true;
             _progress.Visible = false;
+            _btnRefresh.Visible = true;
+            _btnRebuild.Visible = true;
+            _btnCancel.Visible = false;
             ToggleButtons(true);
             AppSettingsStore.Save(_settings);
         }
     }
 
+    private bool IsEnglish => Strings.IsEnglish;
+
     private void ToggleButtons(bool enabled)
     {
         _btnSelectFolders.Enabled = enabled;
-        _btnBuild.Enabled = enabled;
+        _btnRefresh.Enabled = enabled;
+        _btnRebuild.Enabled = enabled;
         _btnClear.Enabled = enabled;
         _chkAutoRefresh.Enabled = enabled;
         _nudInterval.Enabled = enabled;
