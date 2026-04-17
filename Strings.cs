@@ -170,4 +170,21 @@ internal static class Strings
           "  • Vink 'Toon voorbeeldvenster' aan om een berichtvoorbeeld te zien.\n" +
           "  • Versleep de splitter om het voorbeeldvenster groter of kleiner te maken.\n" +
           "  • Gebruik 'Kopieer voorbeeld' om de berichttekst naar het klembord te kopiëren.";
+
+    // --- Update functionaliteit ---
+    public static string MenuCheckForUpdates     => IsEnglish ? "Check for updates..."      : "Controleer op updates...";
+    public static string UpdateTitle             => IsEnglish ? "Update Available"          : "Update Beschikbaar";
+    public static string UpdateAvailableTitle    => IsEnglish ? "A new version is available!" : "Er is een nieuwe versie beschikbaar!";
+    public static string UpdateCurrentVersionFmt => IsEnglish ? "Current version: {0}"      : "Huidige versie: {0}";
+    public static string UpdateNewVersionFmt     => IsEnglish ? "New version: {0}"          : "Nieuwe versie: {0}";
+    public static string UpdateReleaseDateFmt    => IsEnglish ? "Released: {0}"             : "Uitgebracht: {0}";
+    public static string UpdateReleaseNotes      => IsEnglish ? "Release notes:"            : "Release notes:";
+    public static string UpdateBtnDownload       => IsEnglish ? "Download"                  : "Downloaden";
+    public static string UpdateBtnLater          => IsEnglish ? "Later"                     : "Later";
+    public static string UpdateCheckingTitle     => IsEnglish ? "Checking for updates"      : "Controleren op updates";
+    public static string UpdateCheckingMessage   => IsEnglish ? "Checking for updates..."   : "Controleren op updates...";
+    public static string UpdateNoUpdateTitle     => IsEnglish ? "No updates"                : "Geen updates";
+    public static string UpdateNoUpdateMessage   => IsEnglish ? "You are using the latest version." : "Je gebruikt de nieuwste versie.";
+    public static string UpdateCheckFailedTitle  => IsEnglish ? "Update check failed"       : "Update controle mislukt";
+    public static string UpdateCheckFailedMessage => IsEnglish ? "Could not check for updates. Please try again later." : "Kon niet controleren op updates. Probeer het later opnieuw.";
 }

@@ -425,6 +425,52 @@ public partial class Form1 : MaterialForm
         info.ShowDialog(this);
     }
 
+    private async void mnuHelpCheckUpdates_Click(object sender, EventArgs e)
+    {
+        // Toon "checking" cursor
+        Cursor = Cursors.WaitCursor;
+
+        try
+        {
+            var updateInfo = await UpdateChecker.CheckForUpdateAsync();
+
+            if (updateInfo != null)
+            {
+                // Update beschikbaar - toon dialog
+                using var updateDialog = new UpdateAvailableDialog(updateInfo);
+                if (updateDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    // Gebruiker klikte "Download" - open releases pagina
+                    UpdateChecker.OpenReleasesPage();
+                }
+            }
+            else
+            {
+                // Geen update beschikbaar
+                MessageBox.Show(
+                    Strings.UpdateNoUpdateMessage,
+                    Strings.UpdateNoUpdateTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Update check mislukt
+            MessageBox.Show(
+                Strings.UpdateCheckFailedMessage,
+                Strings.UpdateCheckFailedTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+
+            System.Diagnostics.Debug.WriteLine($"Update check failed: {ex.Message}");
+        }
+        finally
+        {
+            Cursor = Cursors.Default;
+        }
+    }
+
     private async Task RefreshStoresAsync()
     {
         SetBusy(true, Strings.SettingsMsgLoadingMailboxes);
@@ -657,6 +703,7 @@ public partial class Form1 : MaterialForm
         mnuInstellingen.Text = Strings.MenuSettings;
         mnuHelp.Text = Strings.MenuHelp;
         mnuHelpHelp.Text = Strings.MenuHelpItem;
+        mnuHelpCheckUpdates.Text = Strings.MenuCheckForUpdates;
         mnuHelpInfo.Text = Strings.MenuInfoItem;
 
         // Toolbar / controls

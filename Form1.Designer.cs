@@ -32,6 +32,7 @@ partial class Form1
         mnuInstellingen = new ToolStripMenuItem();
         mnuHelp = new ToolStripMenuItem();
         mnuHelpHelp = new ToolStripMenuItem();
+        mnuHelpCheckUpdates = new ToolStripMenuItem();
         mnuHelpInfo = new ToolStripMenuItem();
         lblQuery = new Label();
         cmbQuery = new ComboBox();
@@ -100,7 +101,7 @@ partial class Form1
         // 
         // mnuHelp
         // 
-        mnuHelp.DropDownItems.AddRange(new ToolStripItem[] { mnuHelpHelp, mnuHelpInfo });
+        mnuHelp.DropDownItems.AddRange(new ToolStripItem[] { mnuHelpHelp, mnuHelpCheckUpdates, mnuHelpInfo });
         mnuHelp.Name = "mnuHelp";
         mnuHelp.Size = new Size(44, 20);
         mnuHelp.Text = "Help";
@@ -108,14 +109,21 @@ partial class Form1
         // mnuHelpHelp
         // 
         mnuHelpHelp.Name = "mnuHelpHelp";
-        mnuHelpHelp.Size = new Size(99, 22);
+        mnuHelpHelp.Size = new Size(210, 22);
         mnuHelpHelp.Text = "Help";
         mnuHelpHelp.Click += mnuHelpHelp_Click;
+        // 
+        // mnuHelpCheckUpdates
+        // 
+        mnuHelpCheckUpdates.Name = "mnuHelpCheckUpdates";
+        mnuHelpCheckUpdates.Size = new Size(210, 22);
+        mnuHelpCheckUpdates.Text = "Check for updates...";
+        mnuHelpCheckUpdates.Click += mnuHelpCheckUpdates_Click;
         // 
         // mnuHelpInfo
         // 
         mnuHelpInfo.Name = "mnuHelpInfo";
-        mnuHelpInfo.Size = new Size(99, 22);
+        mnuHelpInfo.Size = new Size(210, 22);
         mnuHelpInfo.Text = "Info";
         mnuHelpInfo.Click += mnuHelpInfo_Click;
         // 
@@ -586,6 +594,7 @@ partial class Form1
     private ToolStripMenuItem mnuHelp;
     private ToolStripMenuItem mnuHelpHelp;
     private ToolStripMenuItem mnuHelpInfo;
+    private ToolStripMenuItem mnuHelpCheckUpdates;
     private Label lblQuery;
     private ComboBox cmbQuery;
     private Button btnSearch;
