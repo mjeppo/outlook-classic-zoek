@@ -1,6 +1,9 @@
+using MaterialSkin;
+using MaterialSkin.Controls;
+
 namespace OutlookClassicSearch;
 
-internal sealed class IndexManagerForm : Form
+internal sealed class IndexManagerForm : MaterialForm
 {
     private readonly IReadOnlyList<StoreListItem> _selectedStores;
     private readonly AppSettings _settings;
@@ -8,8 +11,10 @@ internal sealed class IndexManagerForm : Form
     private readonly Label _lblScope = new();
     private readonly Label _lblIndexState = new();
     private readonly Label _lblInterval = new();
-    private readonly CheckBox _chkAutoRefresh = new();
-    private readonly CheckBox _chkIndexOnStartup = new();
+    private readonly MaterialSwitch _chkAutoRefresh = new();
+    private readonly Label _lblAutoRefresh = new();
+    private readonly MaterialSwitch _chkIndexOnStartup = new();
+    private readonly Label _lblIndexOnStartup = new();
     private readonly NumericUpDown _nudInterval = new();
     private readonly ProgressBar _progress = new();
     private readonly Button _btnSelectFolders = new();
@@ -28,6 +33,10 @@ internal sealed class IndexManagerForm : Form
         _selectedStores = selectedStores;
         _settings = settings;
         _roots = new List<MailboxFolderRoot>(preloadedRoots);
+
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
 
         Text = Strings.IndexTitle;
         StartPosition = FormStartPosition.CenterParent;
@@ -88,24 +97,34 @@ internal sealed class IndexManagerForm : Form
             _lblIndexState.Text = Strings.IndexStateNone;
         };
 
-        _chkAutoRefresh.Text = Strings.IndexChkAutoRefresh;
-        _chkAutoRefresh.SetBounds(12, 66, 170, 24);
+        _chkAutoRefresh.SetBounds(12, 66, 58, 37);
+        _chkAutoRefresh.Depth = 0;
         _chkAutoRefresh.Checked = _settings.IndexAutoRefreshEnabled;
         _chkAutoRefresh.CheckedChanged += (_, _) => _settings.IndexAutoRefreshEnabled = _chkAutoRefresh.Checked;
 
+        _lblAutoRefresh.Text = Strings.IndexChkAutoRefresh;
+        _lblAutoRefresh.SetBounds(75, 72, 170, 24);
+        _lblAutoRefresh.Cursor = Cursors.Hand;
+        _lblAutoRefresh.Click += (_, _) => _chkAutoRefresh.Checked = !_chkAutoRefresh.Checked;
+
         _lblInterval.Text = Strings.IndexLblInterval;
-        _lblInterval.SetBounds(200, 68, 90, 20);
+        _lblInterval.SetBounds(250, 72, 90, 20);
 
         _nudInterval.Minimum = 5;
         _nudInterval.Maximum = 1440;
         _nudInterval.Value = Math.Clamp(_settings.IndexRefreshIntervalMinutes, 5, 1440);
-        _nudInterval.SetBounds(290, 66, 80, 24);
+        _nudInterval.SetBounds(340, 70, 80, 24);
         _nudInterval.ValueChanged += (_, _) => _settings.IndexRefreshIntervalMinutes = (int)_nudInterval.Value;
 
-        _chkIndexOnStartup.Text = Strings.IndexChkIndexOnStartup;
-        _chkIndexOnStartup.SetBounds(390, 66, 220, 24);
+        _chkIndexOnStartup.SetBounds(440, 66, 58, 37);
+        _chkIndexOnStartup.Depth = 0;
         _chkIndexOnStartup.Checked = _settings.IndexOnStartup;
         _chkIndexOnStartup.CheckedChanged += (_, _) => _settings.IndexOnStartup = _chkIndexOnStartup.Checked;
+
+        _lblIndexOnStartup.Text = Strings.IndexChkIndexOnStartup;
+        _lblIndexOnStartup.SetBounds(503, 72, 220, 24);
+        _lblIndexOnStartup.Cursor = Cursors.Hand;
+        _lblIndexOnStartup.Click += (_, _) => _chkIndexOnStartup.Checked = !_chkIndexOnStartup.Checked;
 
         _progress.Style = ProgressBarStyle.Marquee;
         _progress.Visible = false;
@@ -118,9 +137,11 @@ internal sealed class IndexManagerForm : Form
         panel.Controls.Add(_btnCancel);
         panel.Controls.Add(_btnClear);
         panel.Controls.Add(_chkAutoRefresh);
+        panel.Controls.Add(_lblAutoRefresh);
         panel.Controls.Add(_lblInterval);
         panel.Controls.Add(_nudInterval);
         panel.Controls.Add(_chkIndexOnStartup);
+        panel.Controls.Add(_lblIndexOnStartup);
         panel.Controls.Add(_progress);
 
         Controls.Add(panel);
@@ -130,6 +151,8 @@ internal sealed class IndexManagerForm : Form
 
         AppTheme.Apply(this);
         AppTheme.ApplyPrimaryStyle(_btnRefresh);
+        AppTheme.StyleMaterialSwitch(_chkAutoRefresh);
+        AppTheme.StyleMaterialSwitch(_chkIndexOnStartup);
 
         Shown += (_, _) => LoadData();
     }

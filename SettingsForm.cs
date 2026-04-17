@@ -1,6 +1,9 @@
+using MaterialSkin;
+using MaterialSkin.Controls;
+
 namespace OutlookClassicSearch;
 
-internal partial class SettingsForm : Form
+internal partial class SettingsForm : MaterialForm
 {
     private readonly AppSettings _settings;
     private List<MailboxFolderRoot> _folderRoots;
@@ -17,9 +20,19 @@ internal partial class SettingsForm : Form
         List<string> folderTreeStoreIds)
     {
         InitializeComponent();
+
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
+
         AppVisualAssets.ApplyWindowIcon(this);
         AppTheme.Apply(this);
         AppTheme.ApplyPrimaryStyle(btnOK);
+        AppTheme.ApplySecondaryStyle(btnCancel);
+        AppTheme.ApplySecondaryStyle(btnRefreshStores);
+        AppTheme.ApplySecondaryStyle(btnChooseExcludedFolders);
+        AppTheme.ApplySecondaryStyle(btnManageIndex);
+        AppTheme.ApplySecondaryStyle(btnClearHistory);
 
         _settings = settings;
         AvailableStores = new List<StoreListItem>(availableStores);
@@ -37,7 +50,15 @@ internal partial class SettingsForm : Form
         txtExcludedAttachmentExt.Enabled = settings.ExcludeAttachmentExtensions;
         lblExcludedFolderSummary.Text = string.Format(Strings.SettingsLblExcludedFoldersFmt, settings.ExcludedFolderEntryIds.Count);
         cmbLanguage.SelectedIndex = settings.Language == "en" ? 1 : 0;
-    nudSearchHistoryMax.Value = Math.Clamp(settings.SearchHistoryMaxCount, 1, 50);
+        nudSearchHistoryMax.Value = Math.Clamp(settings.SearchHistoryMaxCount, 1, 50);
+
+        // Theme instelling
+        cmbTheme.SelectedIndex = settings.Theme switch
+        {
+            "Dark" => 1,
+            "Auto" => 2,
+            _ => 0
+        };
 
         ApplyStrings();
         PopulateStores();
@@ -124,6 +145,15 @@ internal partial class SettingsForm : Form
     private void btnOK_Click(object sender, EventArgs e)
     {
         SaveToSettings();
+
+        // Pas het nieuwe thema toe
+        AppTheme.ChangeTheme(_settings.Theme switch
+        {
+            "Dark" => AppTheme.ThemeMode.Dark,
+            "Auto" => AppTheme.ThemeMode.Auto,
+            _ => AppTheme.ThemeMode.Light
+        });
+
         DialogResult = DialogResult.OK;
         Close();
     }
@@ -144,7 +174,15 @@ internal partial class SettingsForm : Form
         _settings.ExcludedAttachmentExtensionsRaw = txtExcludedAttachmentExt.Text.Trim();
         _settings.Language = cmbLanguage.SelectedIndex == 1 ? "en" : "nl";
         Strings.IsEnglish = _settings.Language == "en";
-    _settings.SearchHistoryMaxCount = (int)nudSearchHistoryMax.Value;
+        _settings.SearchHistoryMaxCount = (int)nudSearchHistoryMax.Value;
+
+        // Theme instelling
+        _settings.Theme = cmbTheme.SelectedIndex switch
+        {
+            1 => "Dark",
+            2 => "Auto",
+            _ => "Light"
+        };
 
         var checkedStores = GetCheckedStores();
         _settings.SelectedStoreIds = checkedStores.Select(s => s.StoreId).ToList();
@@ -154,20 +192,21 @@ internal partial class SettingsForm : Form
     private void ApplyStrings()
     {
         Text = Strings.SettingsTitle;
-        chkSearchBody.Text             = Strings.SettingsChkSearchBody;
-        chkSearchAttachments.Text      = Strings.SettingsChkSearchAtt;
-        chkUseIndex.Text               = Strings.SettingsChkUseIndex;
-        lblMaxResults.Text             = Strings.SettingsLblMaxResults;
-        chkExcludeAttachmentExt.Text   = Strings.SettingsChkExcludeExt;
-        lblStores.Text                 = Strings.SettingsLblStores;
-        btnRefreshStores.Text          = Strings.SettingsBtnRefreshStores;
-        btnChooseExcludedFolders.Text   = Strings.SettingsBtnExcludeFolders;
-        btnManageIndex.Text            = Strings.SettingsBtnManageIndex;
-        lblLanguage.Text               = Strings.SettingsLblLanguage;
-        lblSearchHistoryMax.Text       = Strings.SettingsLblSearchHistoryMax;
-        btnClearHistory.Text           = Strings.SettingsBtnClearHistory;
-        btnOK.Text                     = Strings.BtnSave;
-        btnCancel.Text                 = Strings.BtnCancel;
+        lblSearchBody.Text = Strings.SettingsChkSearchBody;
+        lblSearchAttachments.Text = Strings.SettingsChkSearchAtt;
+        lblUseIndex.Text = Strings.SettingsChkUseIndex;
+        lblMaxResults.Text = Strings.SettingsLblMaxResults;
+        lblExcludeAttachmentExt.Text = Strings.SettingsChkExcludeExt;
+        lblStores.Text = Strings.SettingsLblStores;
+        btnRefreshStores.Text = Strings.SettingsBtnRefreshStores;
+        btnChooseExcludedFolders.Text = Strings.SettingsBtnExcludeFolders;
+        btnManageIndex.Text = Strings.SettingsBtnManageIndex;
+        lblSearchHistoryMax.Text = Strings.SettingsLblSearchHistoryMax;
+        btnClearHistory.Text = Strings.SettingsBtnClearHistory;
+        lblTheme.Text = Strings.SettingsLblTheme;
+        lblLanguage.Text = Strings.SettingsLblLanguage;
+        btnOK.Text = Strings.BtnSave;
+        btnCancel.Text = Strings.BtnCancel;
     }
 
 
@@ -180,6 +219,32 @@ internal partial class SettingsForm : Form
     private List<StoreListItem> GetCheckedStores()
     {
         return clbStores.CheckedItems.OfType<StoreListItem>().ToList();
+    }
+
+    // Label click handlers om switches te togglen
+    private void lblSearchBody_Click(object? sender, EventArgs e)
+    {
+        chkSearchBody.Checked = !chkSearchBody.Checked;
+    }
+
+    private void lblSearchAttachments_Click(object? sender, EventArgs e)
+    {
+        chkSearchAttachments.Checked = !chkSearchAttachments.Checked;
+    }
+
+    private void lblUseIndex_Click(object? sender, EventArgs e)
+    {
+        chkUseIndex.Checked = !chkUseIndex.Checked;
+    }
+
+    private void lblExcludeAttachmentExt_Click(object? sender, EventArgs e)
+    {
+        chkExcludeAttachmentExt.Checked = !chkExcludeAttachmentExt.Checked;
+    }
+
+    private void nudMaxResults_ValueChanged(object sender, EventArgs e)
+    {
+
     }
 }
 

@@ -1,9 +1,16 @@
+using MaterialSkin;
+using MaterialSkin.Controls;
+
 namespace OutlookClassicSearch;
 
-internal sealed class HelpForm : Form
+internal sealed class HelpForm : MaterialForm
 {
     public HelpForm()
     {
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
+
         Text = "Help";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;

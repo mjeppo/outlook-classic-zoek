@@ -25,6 +25,9 @@ internal sealed class AppSettings
     public int SearchHistoryMaxCount { get; set; } = 10;
     public List<string> SearchHistory { get; set; } = new();
 
+    // Thema instelling (Light, Dark, Auto)
+    public string Theme { get; set; } = "Light";
+
     // Venstergrootte en -positie
     public FormWindowState WindowState { get; set; } = FormWindowState.Normal;
     public int WindowLeft { get; set; } = -1;

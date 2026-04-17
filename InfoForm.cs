@@ -1,9 +1,16 @@
+using MaterialSkin;
+using MaterialSkin.Controls;
+
 namespace OutlookClassicSearch;
 
-internal sealed class InfoForm : Form
+internal sealed class InfoForm : MaterialForm
 {
     public InfoForm()
     {
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
+
         string version = System.Reflection.Assembly.GetExecutingAssembly()
             .GetName().Version?.ToString(3) ?? "onbekend";
 
@@ -12,7 +19,7 @@ internal sealed class InfoForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(640, 390);
+        ClientSize = new Size(640, 450);
 
         AppVisualAssets.ApplyWindowIcon(this);
 

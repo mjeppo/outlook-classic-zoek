@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using MaterialSkin;
+using MaterialSkin.Controls;
 
 namespace OutlookClassicSearch;
 
@@ -18,7 +20,10 @@ internal static class ErrorDetailsDialog
 
         MessageBox.Show(owner, message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
 
-        using var form = new Form();
+        using var form = new MaterialForm();
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(form);
+
         using var textBox = new TextBox();
         using var copyButton = new Button();
 

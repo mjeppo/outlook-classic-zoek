@@ -1,6 +1,9 @@
+using MaterialSkin;
+using MaterialSkin.Controls;
+
 namespace OutlookClassicSearch;
 
-internal sealed class FolderSelectionForm : Form
+internal sealed class FolderSelectionForm : MaterialForm
 {
     private readonly TreeView _tree = new();
     private readonly Button _btnOk = new();
@@ -19,6 +22,10 @@ internal sealed class FolderSelectionForm : Form
     {
         _preselected = new HashSet<string>(preselectedEntryIds, StringComparer.OrdinalIgnoreCase);
         _rootsLoader = rootsLoader;
+
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
 
         Text = title;
         StartPosition = FormStartPosition.CenterParent;

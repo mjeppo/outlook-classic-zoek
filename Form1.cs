@@ -1,8 +1,10 @@
 ﻿using System.ComponentModel;
+using MaterialSkin;
+using MaterialSkin.Controls;
 
 namespace OutlookClassicSearch;
 
-public partial class Form1 : Form
+public partial class Form1 : MaterialForm
 {
     private readonly BindingSource _resultsBindingSource = new();
     private readonly BindingList<EmailSearchResult> _visibleResults = new();
@@ -26,9 +28,21 @@ public partial class Form1 : Form
     public Form1()
     {
         InitializeComponent();
+
+        // MaterialSkin toevoegen aan dit formulier
+        var materialSkinManager = MaterialSkinManager.Instance;
+        materialSkinManager.AddFormToManage(this);
+
         AppVisualAssets.ApplyWindowIcon(this);
         AppTheme.Apply(this);
+
+        // Pas speciale button styling toe NA de algemene Apply()
         AppTheme.ApplyPrimaryStyle(btnSearch);
+        AppTheme.ApplySecondaryStyle(btnCancel);
+        AppTheme.ApplySecondaryStyle(btnExcludeFolders);
+
+        // Luister naar thema wijzigingen
+        AppTheme.ThemeChanged += OnThemeChanged;
 
         _settings = AppSettingsStore.Load();
         Strings.IsEnglish = _settings.Language == "en";
@@ -51,27 +65,27 @@ public partial class Form1 : Form
         chkSearchAttachments.CheckedChanged += (_, _) => { _settings.SearchAttachments = chkSearchAttachments.Checked; };
         nudMainMaxResults.ValueChanged += (_, _) => { _settings.MaxResults = (int)nudMainMaxResults.Value; };
 
-    RefreshHistoryDropdown();
+        RefreshHistoryDropdown();
 
         _columnFilterMap = new Dictionary<string, TextBox>
         {
             [nameof(EmailSearchResult.ReceivedTime)] = txtColDate,
-            [nameof(EmailSearchResult.Subject)]      = txtColSubject,
+            [nameof(EmailSearchResult.Subject)] = txtColSubject,
         };
         _dropdownButtonMap = new Dictionary<string, Button>
         {
-            [nameof(EmailSearchResult.Mailbox)]        = btnColMailbox,
-            [nameof(EmailSearchResult.FolderPath)]     = btnColFolderPath,
-            [nameof(EmailSearchResult.Sender)]         = btnColSender,
-            [nameof(EmailSearchResult.Recipients)]     = btnColRecipients,
+            [nameof(EmailSearchResult.Mailbox)] = btnColMailbox,
+            [nameof(EmailSearchResult.FolderPath)] = btnColFolderPath,
+            [nameof(EmailSearchResult.Sender)] = btnColSender,
+            [nameof(EmailSearchResult.Recipients)] = btnColRecipients,
             [nameof(EmailSearchResult.HasAttachments)] = btnColHasAttachment,
         };
         _dropdownFilterMap = new Dictionary<string, HashSet<string>>
         {
-            [nameof(EmailSearchResult.Mailbox)]        = new(StringComparer.OrdinalIgnoreCase),
-            [nameof(EmailSearchResult.FolderPath)]     = new(StringComparer.OrdinalIgnoreCase),
-            [nameof(EmailSearchResult.Sender)]         = new(StringComparer.OrdinalIgnoreCase),
-            [nameof(EmailSearchResult.Recipients)]     = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.Mailbox)] = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.FolderPath)] = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.Sender)] = new(StringComparer.OrdinalIgnoreCase),
+            [nameof(EmailSearchResult.Recipients)] = new(StringComparer.OrdinalIgnoreCase),
             [nameof(EmailSearchResult.HasAttachments)] = new(StringComparer.OrdinalIgnoreCase),
         };
         foreach (var tb in _columnFilterMap.Values)
@@ -87,11 +101,11 @@ public partial class Form1 : Form
         // Button labels depend on _dropdownButtonMap being initialized, so update them now
         UpdateAllDropdownButtonTexts();
 
-        dgvResults.ColumnWidthChanged        += (_, _) => SyncFilterPositions();
+        dgvResults.ColumnWidthChanged += (_, _) => SyncFilterPositions();
         dgvResults.ColumnDisplayIndexChanged += (_, _) => { SyncFilterPositions(); SaveColumnOrder(); };
-        dgvResults.Scroll                    += (_, _) => SyncFilterPositions();
-        splitContainer.SplitterMoved         += (_, _) => SyncFilterPositions();
-        Resize                               += (_, _) => SyncFilterPositions();
+        dgvResults.Scroll += (_, _) => SyncFilterPositions();
+        splitContainer.SplitterMoved += (_, _) => SyncFilterPositions();
+        Resize += (_, _) => SyncFilterPositions();
 
         chkShowPreview.CheckedChanged += (_, _) => UpdatePreviewVisibility();
         dgvResults.SelectionChanged += dgvResults_SelectionChanged;
@@ -136,6 +150,9 @@ public partial class Form1 : Form
 
     private void Form1_FormClosing(object sender, FormClosingEventArgs e)
     {
+        // Cleanup theme event handler
+        AppTheme.ThemeChanged -= OnThemeChanged;
+
         _previewCancellation?.Cancel();
         _previewCancellation?.Dispose();
         _previewCancellation = null;
@@ -143,6 +160,19 @@ public partial class Form1 : Form
         _filterDebounceTimer.Dispose();
         SaveWindowBounds();
         SaveSettings();
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        // Herlaad het thema voor dit formulier
+        AppTheme.Apply(this);
+
+        // Pas speciale button styling opnieuw toe
+        AppTheme.ApplyPrimaryStyle(btnSearch);
+        AppTheme.ApplySecondaryStyle(btnCancel);
+        AppTheme.ApplySecondaryStyle(btnExcludeFolders);
+
+        dgvResults.Refresh();
     }
 
     private void SaveWindowBounds()
@@ -361,7 +391,7 @@ public partial class Form1 : Form
             nudMainMaxResults.Value = Math.Clamp(_settings.MaxResults, 10, 5000);
             UpdateExcludedFoldersSummary();
             AppSettingsStore.Save(_settings);
-                        RefreshHistoryDropdown();
+            RefreshHistoryDropdown();
             ApplyStrings();
         }
     }
@@ -625,24 +655,24 @@ public partial class Form1 : Form
     {
         // Menu
         mnuInstellingen.Text = Strings.MenuSettings;
-        mnuHelp.Text         = Strings.MenuHelp;
-        mnuHelpHelp.Text     = Strings.MenuHelpItem;
-        mnuHelpInfo.Text     = Strings.MenuInfoItem;
+        mnuHelp.Text = Strings.MenuHelp;
+        mnuHelpHelp.Text = Strings.MenuHelpItem;
+        mnuHelpInfo.Text = Strings.MenuInfoItem;
 
         // Toolbar / controls
-        lblQuery.Text              = Strings.LabelQuery;
-        btnSearch.Text             = Strings.BtnSearch;
-        btnCancel.Text             = Strings.BtnCancel;
-        chkShowPreview.Text        = Strings.ChkShowPreview;
-        chkUseDateRange.Text       = Strings.ChkUseDateRange;
-        chkSearchBody.Text         = Strings.SettingsChkSearchBody;
-        chkSearchAttachments.Text  = Strings.SettingsChkSearchAtt;
-        lblMainMaxResults.Text     = Strings.SettingsLblMaxResults;
-        btnExcludeFolders.Text     = Strings.SettingsBtnExcludeFolders;
+        lblQuery.Text = Strings.LabelQuery;
+        btnSearch.Text = Strings.BtnSearch;
+        btnCancel.Text = Strings.BtnCancel;
+        lblShowPreview.Text = Strings.ChkShowPreview;
+        lblUseDateRange.Text = Strings.ChkUseDateRange;
+        lblSearchBody.Text = Strings.SettingsChkSearchBody;
+        lblSearchAttachments.Text = Strings.SettingsChkSearchAtt;
+        lblMainMaxResults.Text = Strings.SettingsLblMaxResults;
+        btnExcludeFolders.Text = Strings.SettingsBtnExcludeFolders;
         UpdateExcludedFoldersSummary();
 
         // Filter placeholders (TextBox filters)
-        txtColDate.PlaceholderText    = Strings.FilterDate;
+        txtColDate.PlaceholderText = Strings.FilterDate;
         txtColSubject.PlaceholderText = Strings.FilterSubject;
 
         // Dropdown filter button labels
@@ -650,7 +680,7 @@ public partial class Form1 : Form
 
         // Preview panel
         btnClosePreview.Text = Strings.BtnClosePreview;
-        btnCopyPreview.Text  = Strings.BtnCopyPreview;
+        btnCopyPreview.Text = Strings.BtnCopyPreview;
 
         // Status bar (only reset when idle)
         if (!toolStripProgressBar.Visible)
@@ -661,12 +691,12 @@ public partial class Form1 : Form
         {
             col.HeaderText = col.DataPropertyName switch
             {
-                nameof(EmailSearchResult.Mailbox)        => Strings.ColMailbox,
-                nameof(EmailSearchResult.FolderPath)     => Strings.ColFolder,
-                nameof(EmailSearchResult.ReceivedTime)   => Strings.ColDate,
-                nameof(EmailSearchResult.Subject)        => Strings.ColSubject,
-                nameof(EmailSearchResult.Sender)         => Strings.ColSender,
-                nameof(EmailSearchResult.Recipients)     => Strings.ColRecipients,
+                nameof(EmailSearchResult.Mailbox) => Strings.ColMailbox,
+                nameof(EmailSearchResult.FolderPath) => Strings.ColFolder,
+                nameof(EmailSearchResult.ReceivedTime) => Strings.ColDate,
+                nameof(EmailSearchResult.Subject) => Strings.ColSubject,
+                nameof(EmailSearchResult.Sender) => Strings.ColSender,
+                nameof(EmailSearchResult.Recipients) => Strings.ColRecipients,
                 nameof(EmailSearchResult.HasAttachments) => Strings.ColHasAttachment,
                 _ => col.HeaderText
             };
@@ -697,11 +727,11 @@ public partial class Form1 : Form
 
         Func<EmailSearchResult, object> keySelector = _sortColumn switch
         {
-            nameof(EmailSearchResult.Mailbox)        => r => r.Mailbox,
-            nameof(EmailSearchResult.FolderPath)     => r => r.FolderPath,
-            nameof(EmailSearchResult.Subject)        => r => r.Subject,
-            nameof(EmailSearchResult.Sender)         => r => r.Sender,
-            nameof(EmailSearchResult.Recipients)     => r => r.Recipients,
+            nameof(EmailSearchResult.Mailbox) => r => r.Mailbox,
+            nameof(EmailSearchResult.FolderPath) => r => r.FolderPath,
+            nameof(EmailSearchResult.Subject) => r => r.Subject,
+            nameof(EmailSearchResult.Sender) => r => r.Sender,
+            nameof(EmailSearchResult.Recipients) => r => r.Recipients,
             nameof(EmailSearchResult.HasAttachments) => r => r.HasAttachments,
             _ => r => r.ReceivedTime
         };
@@ -780,7 +810,7 @@ public partial class Form1 : Form
             string value = prop switch
             {
                 nameof(EmailSearchResult.ReceivedTime) => result.ReceivedTime.ToString("yyyy-MM-dd HH:mm"),
-                nameof(EmailSearchResult.Subject)      => result.Subject,
+                nameof(EmailSearchResult.Subject) => result.Subject,
                 _ => string.Empty
             };
             if (!value.Contains(f, comparison)) return false;
@@ -795,18 +825,18 @@ public partial class Form1 : Form
             {
                 // Selected values are localised "Ja"/"Nee" strings
                 bool wantYes = selected.Contains(Strings.FilterYes);
-                bool wantNo  = selected.Contains(Strings.FilterNo);
-                if (wantYes && !wantNo  && !result.HasAttachments) return false;
-                if (!wantYes && wantNo  &&  result.HasAttachments) return false;
+                bool wantNo = selected.Contains(Strings.FilterNo);
+                if (wantYes && !wantNo && !result.HasAttachments) return false;
+                if (!wantYes && wantNo && result.HasAttachments) return false;
                 // both selected = no filter
                 continue;
             }
 
             string value = prop switch
             {
-                nameof(EmailSearchResult.Mailbox)    => result.Mailbox,
+                nameof(EmailSearchResult.Mailbox) => result.Mailbox,
                 nameof(EmailSearchResult.FolderPath) => result.FolderPath,
-                nameof(EmailSearchResult.Sender)     => result.Sender,
+                nameof(EmailSearchResult.Sender) => result.Sender,
                 nameof(EmailSearchResult.Recipients) => result.Recipients,
                 _ => string.Empty
             };
@@ -855,9 +885,9 @@ public partial class Form1 : Form
         {
             Func<EmailSearchResult, string> getValue = columnProp switch
             {
-                nameof(EmailSearchResult.Mailbox)    => r => r.Mailbox,
+                nameof(EmailSearchResult.Mailbox) => r => r.Mailbox,
                 nameof(EmailSearchResult.FolderPath) => r => r.FolderPath,
-                nameof(EmailSearchResult.Sender)     => r => r.Sender,
+                nameof(EmailSearchResult.Sender) => r => r.Sender,
                 nameof(EmailSearchResult.Recipients) => r => r.Recipients,
                 _ => r => string.Empty
             };
@@ -908,7 +938,7 @@ public partial class Form1 : Form
             Padding = new Padding(1),
         };
         popup.Items.Add(host);
-        popup.Width  = clb.Width + 2;
+        popup.Width = clb.Width + 2;
         popup.Height = clb.Height + 2;
 
         clb.ItemCheck += (_, e) =>
@@ -927,7 +957,7 @@ public partial class Form1 : Form
     {
         // Checkbox width (~20px) + text + padding
         const int checkboxW = 22;
-        const int paddingW  = 12;
+        const int paddingW = 12;
         if (values.Count == 0) return 120;
         using var g = clb.CreateGraphics();
         float maxW = values.Max(v => g.MeasureString(v, clb.Font).Width);
@@ -938,10 +968,10 @@ public partial class Form1 : Form
     {
         string label = columnProp switch
         {
-            nameof(EmailSearchResult.Mailbox)        => Strings.ColMailbox,
-            nameof(EmailSearchResult.FolderPath)     => Strings.ColFolder,
-            nameof(EmailSearchResult.Sender)         => Strings.ColSender,
-            nameof(EmailSearchResult.Recipients)     => Strings.ColRecipients,
+            nameof(EmailSearchResult.Mailbox) => Strings.ColMailbox,
+            nameof(EmailSearchResult.FolderPath) => Strings.ColFolder,
+            nameof(EmailSearchResult.Sender) => Strings.ColSender,
+            nameof(EmailSearchResult.Recipients) => Strings.ColRecipients,
             nameof(EmailSearchResult.HasAttachments) => Strings.ColHasAttachment,
             _ => columnProp
         };
@@ -1039,6 +1069,37 @@ public partial class Form1 : Form
             txtPreview.Text = "Voorbeeld laden mislukt: " + ex.Message;
             btnCopyPreview.Enabled = false;
         }
+    }
+
+    private void chkShowPreview_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    // Label click handlers om switches te togglen
+    private void lblShowPreview_Click(object? sender, EventArgs e)
+    {
+        chkShowPreview.Checked = !chkShowPreview.Checked;
+    }
+
+    private void lblUseDateRange_Click(object? sender, EventArgs e)
+    {
+        chkUseDateRange.Checked = !chkUseDateRange.Checked;
+    }
+
+    private void lblSearchBody_Click(object? sender, EventArgs e)
+    {
+        chkSearchBody.Checked = !chkSearchBody.Checked;
+    }
+
+    private void lblSearchAttachments_Click(object? sender, EventArgs e)
+    {
+        chkSearchAttachments.Checked = !chkSearchAttachments.Checked;
+    }
+
+    private void materialLabel1_Click(object sender, EventArgs e)
+    {
+
     }
 }
 

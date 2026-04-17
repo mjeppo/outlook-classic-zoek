@@ -90,6 +90,10 @@ internal static class Strings
     public static string SettingsLblLanguage         => IsEnglish ? "Display language:"                         : "Weergavetaal:";
     public static string SettingsLblSearchHistoryMax => IsEnglish ? "Max search history:"                       : "Max zoekgeschiedenis:";
     public static string SettingsBtnClearHistory     => IsEnglish ? "Clear history"                             : "Geschiedenis wissen";
+    public static string SettingsLblTheme            => IsEnglish ? "Theme:"                                    : "Thema:";
+    public static string SettingsThemeLight          => IsEnglish ? "Light"                                     : "Licht";
+    public static string SettingsThemeDark           => IsEnglish ? "Dark"                                      : "Donker";
+    public static string SettingsThemeAuto           => IsEnglish ? "Auto (System)"                             : "Auto (Systeem)";
     public static string SettingsMsgNoMailbox        => IsEnglish ? "Please select at least 1 mailbox first."  : "Selecteer eerst minimaal 1 mailbox.";
     public static string SettingsMsgNoMailboxTitle   => IsEnglish ? "No mailboxes"                              : "Geen mailboxen";
     public static string SettingsMsgLoadingMailboxes => IsEnglish ? "Loading mailboxes..."                      : "Mailboxen ophalen...";
