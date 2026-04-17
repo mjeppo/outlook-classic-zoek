@@ -23,7 +23,7 @@ Windows desktop app (WinForms) om te zoeken in Outlook Classic, inclusief gedeel
 - Windows 10/11
 - Outlook Classic (desktop) geinstalleerd en geconfigureerd
 - Mailboxen en shared mailboxen zichtbaar in Outlook-profiel
-- .NET SDK 8 voor bouwen (niet nodig op doelmachine bij self-contained publish)
+- .NET SDK 8
 
 De app gebruikt NetOffice interop wrappers. Daardoor is er geen directe runtime-afhankelijkheid meer op Office PIA assembly `office, Version=15.0.0.0`.
 
