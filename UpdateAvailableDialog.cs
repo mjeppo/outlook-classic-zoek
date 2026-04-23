@@ -25,6 +25,7 @@ internal sealed class UpdateAvailableDialog : MaterialForm
         materialSkinManager.AddFormToManage(this);
 
         Text = Strings.UpdateTitle;
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

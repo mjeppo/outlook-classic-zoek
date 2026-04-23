@@ -15,6 +15,7 @@ internal sealed class InfoForm : MaterialForm
             .GetName().Version?.ToString(3) ?? "onbekend";
 
         Text = "Info";
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

@@ -271,6 +271,7 @@ internal static class AppTheme
 
             case Label lbl:
                 lbl.ForeColor = TextPrimary;
+                lbl.BackColor = Color.Transparent;
                 break;
 
             case Panel pnl:
@@ -358,11 +359,19 @@ internal static class AppTheme
         // MaterialSwitch heeft zijn eigen styling via MaterialSkin
         // We gebruiken labels voor de tekst, dus alleen de Depth instellen
         sw.Depth = 0; // 0 = primary depth voor betere visuele hiërarchie
+
+        // MaterialSwitch rendering fix voor dark mode
+        // Forceer de switch om de parent background color te gebruiken
+        sw.BackColor = Background;
+
+        // Force invalidate om de rendering te triggeren
+        sw.Invalidate();
     }
 
     private static void StyleCheckBox(CheckBox chk)
     {
         chk.ForeColor = TextPrimary;
+        chk.BackColor = Color.Transparent;
         chk.Font      = DefaultFont;
         chk.FlatStyle = FlatStyle.Flat;
         chk.Cursor    = Cursors.Hand;
@@ -466,11 +475,22 @@ internal static class AppTheme
         public override Color MenuStripGradientEnd                => Background;
         public override Color MenuBorder                          => Border;
         public override Color MenuItemBorder                      => Accent;
-        public override Color MenuItemSelected                    => Color.FromArgb(229, 243, 255);
-        public override Color MenuItemSelectedGradientBegin       => Color.FromArgb(229, 243, 255);
-        public override Color MenuItemSelectedGradientEnd         => Color.FromArgb(229, 243, 255);
-        public override Color MenuItemPressedGradientBegin        => Color.FromArgb(204, 232, 255);
-        public override Color MenuItemPressedGradientEnd          => Color.FromArgb(204, 232, 255);
+
+        // Hover kleuren - afhankelijk van thema
+        public override Color MenuItemSelected                    => _isDarkTheme 
+            ? Color.FromArgb(60, 60, 60)   // Donkergrijs hover in dark mode
+            : Color.FromArgb(229, 243, 255); // Lichtblauw hover in light mode
+
+        public override Color MenuItemSelectedGradientBegin       => MenuItemSelected;
+        public override Color MenuItemSelectedGradientEnd         => MenuItemSelected;
+
+        // Pressed kleuren
+        public override Color MenuItemPressedGradientBegin        => _isDarkTheme
+            ? Color.FromArgb(50, 50, 50)   // Nog donkerder in dark mode
+            : Color.FromArgb(204, 232, 255); // Donkerder blauw in light mode
+
+        public override Color MenuItemPressedGradientEnd          => MenuItemPressedGradientBegin;
+
         public override Color ToolStripDropDownBackground         => Surface;
         public override Color ImageMarginGradientBegin            => Surface;
         public override Color ImageMarginGradientMiddle           => Surface;

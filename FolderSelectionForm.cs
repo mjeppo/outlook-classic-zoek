@@ -28,6 +28,7 @@ internal sealed class FolderSelectionForm : MaterialForm
         materialSkinManager.AddFormToManage(this);
 
         Text = title;
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(760, 620);
         MinimumSize = new Size(600, 450);

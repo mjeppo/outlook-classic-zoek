@@ -5,17 +5,21 @@ internal static class Strings
     public static bool IsEnglish { get; set; }
 
     // --- Menu ---
-    public static string MenuSettings   => IsEnglish ? "⚙ Settings"    : "⚙ Instellingen";
-    public static string MenuHelp       => "❓ Help";
+    public static string MenuSettings   => IsEnglish ? "Settings"    : "Instellingen";
+    public static string MenuHelp       => "Help";
     public static string MenuHelpItem   => "Help";
     public static string MenuInfoItem   => "Info";
 
     // --- Main form ---
     public static string LabelQuery      => IsEnglish ? "Search term:"  : "Zoekterm:";
+    public static string LabelSearchFolders => IsEnglish ? "Search in folders:" : "Zoek in mappen:";
+    public static string BtnSelectFolders => IsEnglish ? "Select folders..." : "Selecteer mappen...";
+    public static string BtnAllFolders    => IsEnglish ? "All folders" : "Alle mappen";
     public static string QueryPlaceholder => IsEnglish ? "E.g. invoice, order number, customer name" : "Bijv. factuur, ordernummer, klantnaam";
     public static string BtnSearch       => IsEnglish ? "Search"        : "Zoeken";
     public static string BtnCancel       => IsEnglish ? "Cancel"        : "Annuleren";
     public static string BtnSave         => IsEnglish ? "Save"          : "Opslaan";
+    public static string BtnApply        => IsEnglish ? "Apply"         : "Toepassen";
     public static string BtnClose        => IsEnglish ? "Close"         : "Sluiten";
     public static string ChkShowPreview  => IsEnglish ? "Show preview"  : "Toon voorbeeldvenster";
     public static string ChkUseDateRange => IsEnglish ? "Use date range": "Gebruik datum";
@@ -48,6 +52,10 @@ internal static class Strings
     public static string StatusReady           => IsEnglish ? "Ready for search"      : "Klaar voor zoekopdracht";
     public static string StatusSearchStarted   => IsEnglish ? "Search started..."     : "Zoeken gestart...";
     public static string StatusSearchDoneFmt   => IsEnglish ? "Done. {0} result(s)."  : "Klaar. {0} resultaat/resultaten.";
+    public static string StatusSearchDoneDetailedFmt => IsEnglish ? "Done. {0} message(s) match your search." : "Klaar. {0} bericht(en) voldoen aan je zoekopdracht.";
+    public static string StatusSearchDoneMaxReachedFmt => IsEnglish ? "Done. {0} message(s) found (maximum reached, more results may exist)." : "Klaar. {0} bericht(en) gevonden (maximum bereikt, mogelijk zijn er meer resultaten).";
+    public static string LblResultCountFmt => IsEnglish ? "Search results: {0}" : "Aantal zoekresultaten: {0}";
+    public static string LblResultCountMaxFmt => IsEnglish ? "Search results: {0} (Only {1} results displayed)" : "Aantal zoekresultaten: {0} (Let op, er worden slechts {1} resultaten weergegeven)";
     public static string StatusSearchCancelled => IsEnglish ? "Search cancelled."     : "Zoeken geannuleerd.";
     public static string StatusSearchFailed    => IsEnglish ? "Search failed."         : "Zoeken mislukt.";
     public static string StatusCopied          => IsEnglish ? "Preview copied to clipboard." : "Voorbeeld gekopieerd naar klembord.";
@@ -57,6 +65,8 @@ internal static class Strings
     public static string StatusAutoIndexFailed => IsEnglish ? "Auto-index failed."       : "Auto-index mislukt.";
     public static string StatusMailboxesFoundFmt  => IsEnglish ? "{0} mailbox(es) found." : "{0} mailbox(en) gevonden.";
     public static string StatusMailboxesFailed    => IsEnglish ? "Loading mailboxes failed." : "Mailboxen laden mislukt.";
+    public static string MsgNoResults          => IsEnglish ? "No results found, try again with different search criteria." : "Geen resultaten gevonden, probeer het opnieuw met andere zoekcriteria.";
+    public static string MsgTooManyResultsFmt  => IsEnglish ? "There are more than {0} results, filter the results further to get a better result." : "Er zijn meer dan {0} resultaten, filter de resultaten verder om een beter resultaat te krijgen.";
 
     // --- Error dialogs (Form1) ---
     public static string MsgEnterQuery         => IsEnglish ? "Please enter a search term."           : "Vul een zoekterm in.";
@@ -81,7 +91,7 @@ internal static class Strings
     public static string SettingsChkSearchAtt        => IsEnglish ? "Search also in attachments"                : "Zoek ook in bijlagen";
     public static string SettingsChkUseIndex         => IsEnglish ? "Use persistent index"                      : "Gebruik permanente index";
     public static string SettingsLblMaxResults       => IsEnglish ? "Max results:"                              : "Max regels:";
-    public static string SettingsChkExcludeExt       => IsEnglish ? "Exclude attachment extensions (;):"        : "Bijlage-extensies uitsluiten (;):";
+    public static string SettingsChkExcludeExt       => IsEnglish ? "Exclude attachment extensions (;):"        : "Bijlage-extensies uitsluiten (woorden scheiden met ;):";
     public static string SettingsLblStores           => IsEnglish ? "Mailboxes (incl. shared):"                 : "Mailboxen (incl. shared):";
     public static string SettingsBtnRefreshStores    => IsEnglish ? "Refresh mailboxes"                         : "Mailboxen vernieuwen";
     public static string SettingsBtnExcludeFolders   => IsEnglish ? "Exclude folders from search..."            : "Mappen uitsluiten van zoeken...";
@@ -94,6 +104,7 @@ internal static class Strings
     public static string SettingsThemeLight          => IsEnglish ? "Light"                                     : "Licht";
     public static string SettingsThemeDark           => IsEnglish ? "Dark"                                      : "Donker";
     public static string SettingsThemeAuto           => IsEnglish ? "Auto (System)"                             : "Auto (Systeem)";
+    public static string SettingsLblWarningThreshold => IsEnglish ? "Too many results warning at:"              : "Waarschuwing te veel resultaten bij:";
     public static string SettingsMsgNoMailbox        => IsEnglish ? "Please select at least 1 mailbox first."  : "Selecteer eerst minimaal 1 mailbox.";
     public static string SettingsMsgNoMailboxTitle   => IsEnglish ? "No mailboxes"                              : "Geen mailboxen";
     public static string SettingsMsgLoadingMailboxes => IsEnglish ? "Loading mailboxes..."                      : "Mailboxen ophalen...";
@@ -101,6 +112,7 @@ internal static class Strings
     public static string SettingsMsgLoadingFolders   => IsEnglish ? "Loading folder structure..."               : "Mappenstructuur laden...";
     public static string ErrMailboxSettingsTitle     => IsEnglish ? "Loading mailboxes failed"                  : "Mailboxen laden mislukt";
     public static string ErrMailboxSettingsSummary   => IsEnglish ? "Mailboxes could not be retrieved."         : "Mailboxen konden niet worden opgehaald.";
+    public static string SettingsLblWarningThresholdAfter => IsEnglish ? "messages"              : "berichten";
 
     // --- Index manager ---
     public static string IndexTitle              => IsEnglish ? "Index manager"                 : "Indexbeheer";
@@ -171,6 +183,17 @@ internal static class Strings
           "  • Versleep de splitter om het voorbeeldvenster groter of kleiner te maken.\n" +
           "  • Gebruik 'Kopieer voorbeeld' om de berichttekst naar het klembord te kopiëren.";
 
+    // --- Export functionaliteit ---
+    public static string MenuExport         => IsEnglish ? "Export"                     : "Exporteren";
+    public static string MenuExportCsv      => IsEnglish ? "Export to CSV..."           : "Exporteren naar CSV...";
+    public static string MenuExportExcel    => IsEnglish ? "Export to Excel..."         : "Exporteren naar Excel...";
+    public static string ExportCsvFilter    => IsEnglish ? "CSV files|*.csv"            : "CSV-bestanden|*.csv";
+    public static string ExportExcelFilter  => IsEnglish ? "Excel files|*.xlsx"         : "Excel-bestanden|*.xlsx";
+    public static string ExportSuccessFmt   => IsEnglish ? "Exported {0} results to {1}" : "{0} resultaten geëxporteerd naar {1}";
+    public static string ExportFailedTitle  => IsEnglish ? "Export failed"              : "Exporteren mislukt";
+    public static string ExportNoResults    => IsEnglish ? "No results to export"       : "Geen resultaten om te exporteren";
+    public static string ExportNoResultsMsg => IsEnglish ? "Please perform a search first." : "Voer eerst een zoekopdracht uit.";
+
     // --- Update functionaliteit ---
     public static string MenuCheckForUpdates     => IsEnglish ? "Check for updates..."      : "Controleer op updates...";
     public static string UpdateTitle             => IsEnglish ? "Update Available"          : "Update Beschikbaar";
@@ -187,4 +210,14 @@ internal static class Strings
     public static string UpdateNoUpdateMessage   => IsEnglish ? "You are using the latest version." : "Je gebruikt de nieuwste versie.";
     public static string UpdateCheckFailedTitle  => IsEnglish ? "Update check failed"       : "Update controle mislukt";
     public static string UpdateCheckFailedMessage => IsEnglish ? "Could not check for updates. Please try again later." : "Kon niet controleren op updates. Probeer het later opnieuw.";
+
+    // --- Filter en Locate functionaliteit ---
+    public static string BtnClearFilters         => IsEnglish ? "Clear Filters"             : "Wis filters";
+    public static string ContextMenuLocateInOutlook => IsEnglish ? "Open in Outlook"      : "Openen in Outlook";
+    public static string StatusLocatedInOutlook  => IsEnglish ? "Email opened in Outlook." : "E-mail geopend in Outlook.";
+    public static string ErrLocateTitle          => IsEnglish ? "Open failed"             : "Openen mislukt";
+    public static string ErrLocateMailboxNotFound => IsEnglish ? "The mailbox could not be found in Outlook." : "De mailbox kon niet worden gevonden in Outlook.";
+    public static string ErrLocateFolderNotFound => IsEnglish ? "The folder could not be found." : "De map kon niet worden gevonden.";
+    public static string ErrLocateMailNotFound   => IsEnglish ? "The email could not be found in the folder." : "De e-mail kon niet worden gevonden in de map.";
+    public static string ErrLocateSummary        => IsEnglish ? "Could not locate the email in Outlook." : "Kon de e-mail niet lokaliseren in Outlook.";
 }

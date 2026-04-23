@@ -28,6 +28,8 @@ internal sealed class IndexManagerForm : MaterialForm
     private bool _isBuildingIndex;
     private CancellationTokenSource? _buildCts;
 
+    public event EventHandler<bool>? BackgroundIndexingChanged;
+
     public IndexManagerForm(IReadOnlyList<StoreListItem> selectedStores, AppSettings settings, IReadOnlyList<MailboxFolderRoot> preloadedRoots)
     {
         _selectedStores = selectedStores;
@@ -39,6 +41,7 @@ internal sealed class IndexManagerForm : MaterialForm
         materialSkinManager.AddFormToManage(this);
 
         Text = Strings.IndexTitle;
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(760, 380);
         MinimumSize = new Size(640, 300);
@@ -202,13 +205,16 @@ internal sealed class IndexManagerForm : MaterialForm
 
         _isBuildingIndex = true;
         _buildCts = new CancellationTokenSource();
-        _btnClose.Enabled = false;
+        _btnClose.Enabled = true;
+        _btnClose.Text = Strings.IsEnglish ? "Close (indexing continues)" : "Sluiten (indexeren loopt door)";
         _progress.Visible = true;
         _btnRefresh.Visible = false;
         _btnRebuild.Visible = false;
         _btnCancel.Visible = true;
         _btnCancel.Enabled = true;
         ToggleButtons(false);
+
+        BackgroundIndexingChanged?.Invoke(this, true);
 
         try
         {
@@ -240,12 +246,15 @@ internal sealed class IndexManagerForm : MaterialForm
             _buildCts = null;
             _isBuildingIndex = false;
             _btnClose.Enabled = true;
+            _btnClose.Text = Strings.BtnClose;
             _progress.Visible = false;
             _btnRefresh.Visible = true;
             _btnRebuild.Visible = true;
             _btnCancel.Visible = false;
             ToggleButtons(true);
             AppSettingsStore.Save(_settings);
+
+            BackgroundIndexingChanged?.Invoke(this, false);
         }
     }
 
@@ -266,9 +275,22 @@ internal sealed class IndexManagerForm : MaterialForm
     {
         if (_isBuildingIndex)
         {
-            e.Cancel = true;
-            MessageBox.Show(this, Strings.IndexMsgBusy, Strings.IndexMsgBusyTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
+            var result = MessageBox.Show(
+                this,
+                Strings.IsEnglish 
+                    ? "Indexing is still in progress. Close this window and continue indexing in the background?" 
+                    : "Indexeren is nog bezig. Dit venster sluiten en indexeren op de achtergrond voortzetten?",
+                Strings.IsEnglish ? "Indexing in progress" : "Indexeren bezig",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.No)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            // Indexing continues in background, just close the form
         }
 
         AppSettingsStore.Save(_settings);

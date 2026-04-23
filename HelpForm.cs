@@ -12,6 +12,7 @@ internal sealed class HelpForm : MaterialForm
         materialSkinManager.AddFormToManage(this);
 
         Text = "Help";
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

@@ -14,7 +14,7 @@ internal sealed class AppSettings
     public bool UseDateRange { get; set; } = true;
     public DateTime DateFrom { get; set; } = DateTime.Today.AddYears(-1);
     public DateTime DateTo { get; set; } = DateTime.Today;
-    public int MaxResults { get; set; } = 500;
+    public int MaxResults { get; set; } = 5000;
     public bool UsePersistentIndexForSearch { get; set; } = true;
     public bool ExcludeAttachmentExtensions { get; set; } = true;
 
@@ -24,6 +24,7 @@ internal sealed class AppSettings
     public string Language { get; set; } = "nl";
     public int SearchHistoryMaxCount { get; set; } = 10;
     public List<string> SearchHistory { get; set; } = new();
+    public int TooManyResultsWarningThreshold { get; set; } = 110;
 
     // Thema instelling (Light, Dark, Auto)
     public string Theme { get; set; } = "Light";

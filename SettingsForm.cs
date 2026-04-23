@@ -51,6 +51,7 @@ internal partial class SettingsForm : MaterialForm
         lblExcludedFolderSummary.Text = string.Format(Strings.SettingsLblExcludedFoldersFmt, settings.ExcludedFolderEntryIds.Count);
         cmbLanguage.SelectedIndex = settings.Language == "en" ? 1 : 0;
         nudSearchHistoryMax.Value = Math.Clamp(settings.SearchHistoryMaxCount, 1, 50);
+        nudWarningThreshold.Value = Math.Clamp(settings.TooManyResultsWarningThreshold, 10, 10000);
 
         // Theme instelling
         cmbTheme.SelectedIndex = settings.Theme switch
@@ -62,6 +63,54 @@ internal partial class SettingsForm : MaterialForm
 
         ApplyStrings();
         PopulateStores();
+        UpdateThemeComboItems();
+
+        // Workaround voor MaterialSwitch dark mode rendering issue
+        Shown += (s, e) => 
+        {
+            BeginInvoke(new Action(() =>
+            {
+                // Open modal dialog om MaterialSkin te triggeren (zoals andere dialogs doen)
+                using var dummy = new MaterialForm
+                {
+                    Size = new System.Drawing.Size(1, 1),
+                    StartPosition = FormStartPosition.Manual,
+                    Location = new System.Drawing.Point(-10000, -10000),
+                    ShowInTaskbar = false,
+                    ControlBox = false,
+                    FormBorderStyle = FormBorderStyle.None,
+                    Opacity = 0.01
+                };
+
+                // Gebruik ShowDialog met timer om te sluiten
+                var timer = new System.Windows.Forms.Timer { Interval = 1 };
+                timer.Tick += (ts, te) =>
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    dummy.Close();
+                };
+                timer.Start();
+
+                dummy.ShowDialog(this);
+
+                // Nu refresh alle styling
+                AppTheme.Apply(this);
+                AppTheme.ApplyPrimaryStyle(btnOK);
+                AppTheme.ApplySecondaryStyle(btnApply);
+                AppTheme.ApplySecondaryStyle(btnCancel);
+                AppTheme.ApplySecondaryStyle(btnRefreshStores);
+                AppTheme.ApplySecondaryStyle(btnChooseExcludedFolders);
+                AppTheme.ApplySecondaryStyle(btnManageIndex);
+                AppTheme.ApplySecondaryStyle(btnClearHistory);
+                AppTheme.StyleMaterialSwitch(chkSearchBody);
+                AppTheme.StyleMaterialSwitch(chkSearchAttachments);
+                AppTheme.StyleMaterialSwitch(chkUseIndex);
+                AppTheme.StyleMaterialSwitch(chkExcludeAttachmentExt);
+
+                Refresh();
+            }));
+        };
     }
 
     private void PopulateStores()
@@ -158,6 +207,44 @@ internal partial class SettingsForm : MaterialForm
         Close();
     }
 
+    private void btnApply_Click(object sender, EventArgs e)
+    {
+        SaveToSettings();
+
+        // Pas het nieuwe thema direct toe
+        AppTheme.ChangeTheme(_settings.Theme switch
+        {
+            "Dark" => AppTheme.ThemeMode.Dark,
+            "Auto" => AppTheme.ThemeMode.Auto,
+            _ => AppTheme.ThemeMode.Light
+        });
+
+        // Refresh de strings op dit formulier zelf voor de nieuwe taal
+        ApplyStrings();
+
+        // Update labels die formatteerde strings gebruiken (moeten ook vertaald worden)
+        lblExcludedFolderSummary.Text = string.Format(Strings.SettingsLblExcludedFoldersFmt, _settings.ExcludedFolderEntryIds.Count);
+
+        // Refresh de thema styling op dit formulier
+        AppTheme.Apply(this);
+        AppTheme.ApplyPrimaryStyle(btnOK);
+        AppTheme.ApplySecondaryStyle(btnApply);
+        AppTheme.ApplySecondaryStyle(btnCancel);
+        AppTheme.ApplySecondaryStyle(btnRefreshStores);
+        AppTheme.ApplySecondaryStyle(btnChooseExcludedFolders);
+        AppTheme.ApplySecondaryStyle(btnManageIndex);
+        AppTheme.ApplySecondaryStyle(btnClearHistory);
+        AppTheme.StyleMaterialSwitch(chkSearchBody);
+        AppTheme.StyleMaterialSwitch(chkSearchAttachments);
+        AppTheme.StyleMaterialSwitch(chkUseIndex);
+        AppTheme.StyleMaterialSwitch(chkExcludeAttachmentExt);
+
+        // Update ook de theme combo items voor de nieuwe taal
+        UpdateThemeComboItems();
+
+        // Sluit het scherm NIET - gebruiker kan verder werken
+    }
+
     private void btnCancel_Click(object sender, EventArgs e)
     {
         DialogResult = DialogResult.Cancel;
@@ -175,6 +262,7 @@ internal partial class SettingsForm : MaterialForm
         _settings.Language = cmbLanguage.SelectedIndex == 1 ? "en" : "nl";
         Strings.IsEnglish = _settings.Language == "en";
         _settings.SearchHistoryMaxCount = (int)nudSearchHistoryMax.Value;
+        _settings.TooManyResultsWarningThreshold = (int)nudWarningThreshold.Value;
 
         // Theme instelling
         _settings.Theme = cmbTheme.SelectedIndex switch
@@ -197,16 +285,35 @@ internal partial class SettingsForm : MaterialForm
         lblUseIndex.Text = Strings.SettingsChkUseIndex;
         lblMaxResults.Text = Strings.SettingsLblMaxResults;
         lblExcludeAttachmentExt.Text = Strings.SettingsChkExcludeExt;
+        lblExcludeAttachmentExt1.Text = Strings.SettingsChkExcludeExt;
         lblStores.Text = Strings.SettingsLblStores;
         btnRefreshStores.Text = Strings.SettingsBtnRefreshStores;
         btnChooseExcludedFolders.Text = Strings.SettingsBtnExcludeFolders;
         btnManageIndex.Text = Strings.SettingsBtnManageIndex;
         lblSearchHistoryMax.Text = Strings.SettingsLblSearchHistoryMax;
         btnClearHistory.Text = Strings.SettingsBtnClearHistory;
+        lblWarningThreshold.Text = Strings.SettingsLblWarningThreshold;
+        lblBijschriftBerichten.Text = Strings.SettingsLblWarningThresholdAfter;
         lblTheme.Text = Strings.SettingsLblTheme;
         lblLanguage.Text = Strings.SettingsLblLanguage;
         btnOK.Text = Strings.BtnSave;
+        btnApply.Text = Strings.BtnApply;
         btnCancel.Text = Strings.BtnCancel;
+    }
+
+    private void UpdateThemeComboItems()
+    {
+        // Bewaar de huidige selectie
+        int selectedIndex = cmbTheme.SelectedIndex;
+
+        // Update de items met de juiste taal
+        cmbTheme.Items.Clear();
+        cmbTheme.Items.Add(Strings.SettingsThemeLight);
+        cmbTheme.Items.Add(Strings.SettingsThemeDark);
+        cmbTheme.Items.Add(Strings.SettingsThemeAuto);
+
+        // Herstel de selectie
+        cmbTheme.SelectedIndex = selectedIndex;
     }
 
 

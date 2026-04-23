@@ -30,14 +30,24 @@ partial class Form1
     {
         menuStrip1 = new MenuStrip();
         mnuInstellingen = new ToolStripMenuItem();
+        mnuExport = new ToolStripMenuItem();
+        mnuExportCsv = new ToolStripMenuItem();
+        mnuIndex = new ToolStripMenuItem();
+        mnuIndexManage = new ToolStripMenuItem();
+        mnuIndexRefresh = new ToolStripMenuItem();
+        mnuIndexRebuild = new ToolStripMenuItem();
         mnuHelp = new ToolStripMenuItem();
         mnuHelpHelp = new ToolStripMenuItem();
         mnuHelpCheckUpdates = new ToolStripMenuItem();
         mnuHelpInfo = new ToolStripMenuItem();
         lblQuery = new Label();
         cmbQuery = new ComboBox();
-        btnSearch = new Button();
-        btnCancel = new Button();
+        btnSelectSearchFolders = new MaterialSkin.Controls.MaterialButton();
+        btnSearch = new MaterialSkin.Controls.MaterialButton();
+        btnCancel = new MaterialSkin.Controls.MaterialButton();
+        btnClearFilters = new MaterialSkin.Controls.MaterialButton();
+        lblResultCount = new Label();
+        lblWarningResults = new Label();
         lblShowPreview = new Label();
         chkShowPreview = new MaterialSkin.Controls.MaterialSwitch();
         lblUseDateRange = new Label();
@@ -86,7 +96,7 @@ partial class Form1
         // 
         // menuStrip1
         // 
-        menuStrip1.Items.AddRange(new ToolStripItem[] { mnuInstellingen, mnuHelp });
+        menuStrip1.Items.AddRange(new ToolStripItem[] { mnuInstellingen, mnuExport, mnuIndex, mnuHelp });
         menuStrip1.Location = new Point(3, 64);
         menuStrip1.Name = "menuStrip1";
         menuStrip1.Size = new Size(1094, 24);
@@ -99,6 +109,48 @@ partial class Form1
         mnuInstellingen.Text = "Instellingen";
         mnuInstellingen.Click += mnuInstellingen_Click;
         // 
+        // mnuExport
+        // 
+        mnuExport.DropDownItems.AddRange(new ToolStripItem[] { mnuExportCsv });
+        mnuExport.Name = "mnuExport";
+        mnuExport.Size = new Size(52, 20);
+        mnuExport.Text = "Export";
+        // 
+        // mnuExportCsv
+        // 
+        mnuExportCsv.Name = "mnuExportCsv";
+        mnuExportCsv.Size = new Size(189, 22);
+        mnuExportCsv.Text = "Exporteren naar CSV...";
+        mnuExportCsv.Click += mnuExportCsv_Click;
+        // 
+        // mnuIndex
+        // 
+        mnuIndex.DropDownItems.AddRange(new ToolStripItem[] { mnuIndexManage, mnuIndexRefresh, mnuIndexRebuild });
+        mnuIndex.Name = "mnuIndex";
+        mnuIndex.Size = new Size(47, 20);
+        mnuIndex.Text = "Index";
+        // 
+        // mnuIndexManage
+        // 
+        mnuIndexManage.Name = "mnuIndexManage";
+        mnuIndexManage.Size = new Size(211, 22);
+        mnuIndexManage.Text = "Index beheren...";
+        mnuIndexManage.Click += mnuIndexManage_Click;
+        // 
+        // mnuIndexRefresh
+        // 
+        mnuIndexRefresh.Name = "mnuIndexRefresh";
+        mnuIndexRefresh.Size = new Size(211, 22);
+        mnuIndexRefresh.Text = "Index verversen";
+        mnuIndexRefresh.Click += mnuIndexRefresh_Click;
+        // 
+        // mnuIndexRebuild
+        // 
+        mnuIndexRebuild.Name = "mnuIndexRebuild";
+        mnuIndexRebuild.Size = new Size(211, 22);
+        mnuIndexRebuild.Text = "Index opnieuw opbouwen";
+        mnuIndexRebuild.Click += mnuIndexRebuild_Click;
+        // 
         // mnuHelp
         // 
         mnuHelp.DropDownItems.AddRange(new ToolStripItem[] { mnuHelpHelp, mnuHelpCheckUpdates, mnuHelpInfo });
@@ -109,28 +161,28 @@ partial class Form1
         // mnuHelpHelp
         // 
         mnuHelpHelp.Name = "mnuHelpHelp";
-        mnuHelpHelp.Size = new Size(210, 22);
+        mnuHelpHelp.Size = new Size(179, 22);
         mnuHelpHelp.Text = "Help";
         mnuHelpHelp.Click += mnuHelpHelp_Click;
         // 
         // mnuHelpCheckUpdates
         // 
         mnuHelpCheckUpdates.Name = "mnuHelpCheckUpdates";
-        mnuHelpCheckUpdates.Size = new Size(210, 22);
+        mnuHelpCheckUpdates.Size = new Size(179, 22);
         mnuHelpCheckUpdates.Text = "Check for updates...";
         mnuHelpCheckUpdates.Click += mnuHelpCheckUpdates_Click;
         // 
         // mnuHelpInfo
         // 
         mnuHelpInfo.Name = "mnuHelpInfo";
-        mnuHelpInfo.Size = new Size(210, 22);
+        mnuHelpInfo.Size = new Size(179, 22);
         mnuHelpInfo.Text = "Info";
         mnuHelpInfo.Click += mnuHelpInfo_Click;
         // 
         // lblQuery
         // 
         lblQuery.AutoSize = true;
-        lblQuery.Location = new Point(8, 96);
+        lblQuery.Location = new Point(8, 100);
         lblQuery.Name = "lblQuery";
         lblQuery.Size = new Size(61, 15);
         lblQuery.TabIndex = 14;
@@ -139,40 +191,120 @@ partial class Form1
         // cmbQuery
         // 
         cmbQuery.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        cmbQuery.Location = new Point(75, 92);
+        cmbQuery.Location = new Point(75, 96);
         cmbQuery.Name = "cmbQuery";
-        cmbQuery.Size = new Size(829, 23);
+        cmbQuery.Size = new Size(686, 23);
         cmbQuery.TabIndex = 1;
         cmbQuery.KeyDown += cmbQuery_KeyDown;
+        // 
+        // btnSelectSearchFolders
+        // 
+        btnSelectSearchFolders.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnSelectSearchFolders.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnSelectSearchFolders.Density = MaterialSkin.Controls.MaterialButton.MaterialButtonDensity.Default;
+        btnSelectSearchFolders.Depth = 0;
+        btnSelectSearchFolders.HighEmphasis = false;
+        btnSelectSearchFolders.Icon = null;
+        btnSelectSearchFolders.Location = new Point(768, 91);
+        btnSelectSearchFolders.Margin = new Padding(4, 6, 4, 6);
+        btnSelectSearchFolders.MouseState = MaterialSkin.MouseState.HOVER;
+        btnSelectSearchFolders.Name = "btnSelectSearchFolders";
+        btnSelectSearchFolders.NoAccentTextColor = Color.Empty;
+        btnSelectSearchFolders.Size = new Size(139, 36);
+        btnSelectSearchFolders.TabIndex = 16;
+        btnSelectSearchFolders.Text = "Alle mappen ▼";
+        btnSelectSearchFolders.Type = MaterialSkin.Controls.MaterialButton.MaterialButtonType.Text;
+        btnSelectSearchFolders.UseAccentColor = false;
+        btnSelectSearchFolders.UseVisualStyleBackColor = true;
+        btnSelectSearchFolders.Click += btnSelectSearchFolders_Click;
         // 
         // btnSearch
         // 
         btnSearch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnSearch.Location = new Point(912, 91);
+        btnSearch.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnSearch.Density = MaterialSkin.Controls.MaterialButton.MaterialButtonDensity.Default;
+        btnSearch.Depth = 0;
+        btnSearch.HighEmphasis = true;
+        btnSearch.Icon = null;
+        btnSearch.Location = new Point(911, 91);
+        btnSearch.Margin = new Padding(4, 6, 4, 6);
+        btnSearch.MouseState = MaterialSkin.MouseState.HOVER;
         btnSearch.Name = "btnSearch";
-        btnSearch.Size = new Size(86, 27);
+        btnSearch.NoAccentTextColor = Color.Empty;
+        btnSearch.Size = new Size(77, 36);
         btnSearch.TabIndex = 2;
         btnSearch.Text = "Zoeken";
+        btnSearch.Type = MaterialSkin.Controls.MaterialButton.MaterialButtonType.Contained;
+        btnSearch.UseAccentColor = false;
         btnSearch.UseVisualStyleBackColor = true;
         btnSearch.Click += btnSearch_Click;
         // 
         // btnCancel
         // 
         btnCancel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnCancel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnCancel.Density = MaterialSkin.Controls.MaterialButton.MaterialButtonDensity.Default;
+        btnCancel.Depth = 0;
         btnCancel.Enabled = false;
-        btnCancel.Location = new Point(1006, 91);
+        btnCancel.HighEmphasis = false;
+        btnCancel.Icon = null;
+        btnCancel.Location = new Point(986, 91);
+        btnCancel.Margin = new Padding(4, 6, 4, 6);
+        btnCancel.MouseState = MaterialSkin.MouseState.HOVER;
         btnCancel.Name = "btnCancel";
-        btnCancel.Size = new Size(86, 27);
+        btnCancel.NoAccentTextColor = Color.Empty;
+        btnCancel.Size = new Size(106, 36);
         btnCancel.TabIndex = 3;
         btnCancel.Text = "Annuleren";
+        btnCancel.Type = MaterialSkin.Controls.MaterialButton.MaterialButtonType.Outlined;
+        btnCancel.UseAccentColor = false;
         btnCancel.UseVisualStyleBackColor = true;
         btnCancel.Click += btnCancel_Click;
+        // 
+        // btnClearFilters
+        // 
+        btnClearFilters.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnClearFilters.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        btnClearFilters.Density = MaterialSkin.Controls.MaterialButton.MaterialButtonDensity.Default;
+        btnClearFilters.Depth = 0;
+        btnClearFilters.HighEmphasis = false;
+        btnClearFilters.Icon = null;
+        btnClearFilters.Location = new Point(952, 174);
+        btnClearFilters.Margin = new Padding(4, 6, 4, 6);
+        btnClearFilters.MouseState = MaterialSkin.MouseState.HOVER;
+        btnClearFilters.Name = "btnClearFilters";
+        btnClearFilters.NoAccentTextColor = Color.Empty;
+        btnClearFilters.Size = new Size(126, 36);
+        btnClearFilters.TabIndex = 8;
+        btnClearFilters.Text = "Clear Filters";
+        btnClearFilters.Type = MaterialSkin.Controls.MaterialButton.MaterialButtonType.Text;
+        btnClearFilters.UseAccentColor = false;
+        btnClearFilters.UseVisualStyleBackColor = true;
+        btnClearFilters.Click += btnClearFilters_Click;
+        // 
+        // lblResultCount
+        // 
+        lblResultCount.AutoSize = true;
+        lblResultCount.Location = new Point(559, 166);
+        lblResultCount.Name = "lblResultCount";
+        lblResultCount.Size = new Size(0, 15);
+        lblResultCount.TabIndex = 101;
+        // 
+        // lblWarningResults
+        // 
+        lblWarningResults.AutoSize = true;
+        lblWarningResults.ForeColor = Color.Orange;
+        lblWarningResults.Location = new Point(559, 186);
+        lblWarningResults.Name = "lblWarningResults";
+        lblWarningResults.Size = new Size(0, 15);
+        lblWarningResults.TabIndex = 102;
+        lblWarningResults.Visible = false;
         // 
         // lblShowPreview
         // 
         lblShowPreview.AutoSize = true;
         lblShowPreview.Cursor = Cursors.Hand;
-        lblShowPreview.Location = new Point(59, 134);
+        lblShowPreview.Location = new Point(70, 135);
         lblShowPreview.Name = "lblShowPreview";
         lblShowPreview.Size = new Size(128, 15);
         lblShowPreview.TabIndex = 100;
@@ -181,9 +313,8 @@ partial class Form1
         // 
         // chkShowPreview
         // 
-        chkShowPreview.AutoSize = true;
         chkShowPreview.Depth = 0;
-        chkShowPreview.Location = new Point(8, 124);
+        chkShowPreview.Location = new Point(8, 125);
         chkShowPreview.Margin = new Padding(0);
         chkShowPreview.MouseLocation = new Point(-1, -1);
         chkShowPreview.MouseState = MaterialSkin.MouseState.HOVER;
@@ -198,7 +329,7 @@ partial class Form1
         // 
         lblUseDateRange.AutoSize = true;
         lblUseDateRange.Cursor = Cursors.Hand;
-        lblUseDateRange.Location = new Point(243, 134);
+        lblUseDateRange.Location = new Point(260, 135);
         lblUseDateRange.Name = "lblUseDateRange";
         lblUseDateRange.Size = new Size(86, 15);
         lblUseDateRange.TabIndex = 101;
@@ -207,11 +338,10 @@ partial class Form1
         // 
         // chkUseDateRange
         // 
-        chkUseDateRange.AutoSize = true;
         chkUseDateRange.Checked = true;
         chkUseDateRange.CheckState = CheckState.Checked;
         chkUseDateRange.Depth = 0;
-        chkUseDateRange.Location = new Point(190, 124);
+        chkUseDateRange.Location = new Point(197, 125);
         chkUseDateRange.Margin = new Padding(0);
         chkUseDateRange.MouseLocation = new Point(-1, -1);
         chkUseDateRange.MouseState = MaterialSkin.MouseState.HOVER;
@@ -225,7 +355,7 @@ partial class Form1
         // 
         dtpFrom.CustomFormat = "dd-MM-yyyy";
         dtpFrom.Format = DateTimePickerFormat.Custom;
-        dtpFrom.Location = new Point(333, 129);
+        dtpFrom.Location = new Point(350, 130);
         dtpFrom.Name = "dtpFrom";
         dtpFrom.Size = new Size(94, 23);
         dtpFrom.TabIndex = 5;
@@ -234,7 +364,7 @@ partial class Form1
         // 
         dtpTo.CustomFormat = "dd-MM-yyyy";
         dtpTo.Format = DateTimePickerFormat.Custom;
-        dtpTo.Location = new Point(433, 129);
+        dtpTo.Location = new Point(450, 130);
         dtpTo.Name = "dtpTo";
         dtpTo.Size = new Size(94, 23);
         dtpTo.TabIndex = 6;
@@ -249,7 +379,7 @@ partial class Form1
         pnlFilters.Controls.Add(btnColSender);
         pnlFilters.Controls.Add(btnColRecipients);
         pnlFilters.Controls.Add(btnColHasAttachment);
-        pnlFilters.Location = new Point(8, 190);
+        pnlFilters.Location = new Point(8, 215);
         pnlFilters.Name = "pnlFilters";
         pnlFilters.Size = new Size(1084, 27);
         pnlFilters.TabIndex = 7;
@@ -336,7 +466,7 @@ partial class Form1
         // splitContainer
         // 
         splitContainer.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        splitContainer.Location = new Point(8, 222);
+        splitContainer.Location = new Point(8, 247);
         splitContainer.Name = "splitContainer";
         // 
         // splitContainer.Panel1
@@ -448,9 +578,8 @@ partial class Form1
         // 
         // chkSearchBody
         // 
-        chkSearchBody.AutoSize = true;
         chkSearchBody.Depth = 0;
-        chkSearchBody.Location = new Point(8, 155);
+        chkSearchBody.Location = new Point(8, 156);
         chkSearchBody.Margin = new Padding(0);
         chkSearchBody.MouseLocation = new Point(-1, -1);
         chkSearchBody.MouseState = MaterialSkin.MouseState.HOVER;
@@ -462,9 +591,8 @@ partial class Form1
         // 
         // chkSearchAttachments
         // 
-        chkSearchAttachments.AutoSize = true;
         chkSearchAttachments.Depth = 0;
-        chkSearchAttachments.Location = new Point(190, 155);
+        chkSearchAttachments.Location = new Point(197, 156);
         chkSearchAttachments.Margin = new Padding(0);
         chkSearchAttachments.MouseLocation = new Point(-1, -1);
         chkSearchAttachments.MouseState = MaterialSkin.MouseState.HOVER;
@@ -478,7 +606,7 @@ partial class Form1
         // 
         lblSearchBody.AutoSize = true;
         lblSearchBody.Cursor = Cursors.Hand;
-        lblSearchBody.Location = new Point(59, 164);
+        lblSearchBody.Location = new Point(70, 166);
         lblSearchBody.Name = "lblSearchBody";
         lblSearchBody.Size = new Size(99, 15);
         lblSearchBody.TabIndex = 102;
@@ -489,7 +617,7 @@ partial class Form1
         // 
         lblSearchAttachments.AutoSize = true;
         lblSearchAttachments.Cursor = Cursors.Hand;
-        lblSearchAttachments.Location = new Point(243, 165);
+        lblSearchAttachments.Location = new Point(260, 166);
         lblSearchAttachments.Name = "lblSearchAttachments";
         lblSearchAttachments.Size = new Size(114, 15);
         lblSearchAttachments.TabIndex = 103;
@@ -499,7 +627,7 @@ partial class Form1
         // lblMainMaxResults
         // 
         lblMainMaxResults.AutoSize = true;
-        lblMainMaxResults.Location = new Point(368, 165);
+        lblMainMaxResults.Location = new Point(385, 166);
         lblMainMaxResults.Name = "lblMainMaxResults";
         lblMainMaxResults.Size = new Size(87, 15);
         lblMainMaxResults.TabIndex = 11;
@@ -507,17 +635,17 @@ partial class Form1
         // 
         // nudMainMaxResults
         // 
-        nudMainMaxResults.Location = new Point(454, 163);
+        nudMainMaxResults.Location = new Point(471, 164);
         nudMainMaxResults.Maximum = new decimal(new int[] { 5000, 0, 0, 0 });
         nudMainMaxResults.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
         nudMainMaxResults.Name = "nudMainMaxResults";
         nudMainMaxResults.Size = new Size(72, 23);
         nudMainMaxResults.TabIndex = 9;
-        nudMainMaxResults.Value = new decimal(new int[] { 500, 0, 0, 0 });
+        nudMainMaxResults.Value = new decimal(new int[] { 5000, 0, 0, 0 });
         // 
         // btnExcludeFolders
         // 
-        btnExcludeFolders.Location = new Point(542, 127);
+        btnExcludeFolders.Location = new Point(559, 128);
         btnExcludeFolders.Name = "btnExcludeFolders";
         btnExcludeFolders.Size = new Size(188, 27);
         btnExcludeFolders.TabIndex = 10;
@@ -528,7 +656,7 @@ partial class Form1
         // lblExcludedFolderSummary
         // 
         lblExcludedFolderSummary.AutoSize = true;
-        lblExcludedFolderSummary.Location = new Point(730, 133);
+        lblExcludedFolderSummary.Location = new Point(753, 134);
         lblExcludedFolderSummary.Name = "lblExcludedFolderSummary";
         lblExcludedFolderSummary.Size = new Size(126, 15);
         lblExcludedFolderSummary.TabIndex = 9;
@@ -539,26 +667,30 @@ partial class Form1
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(1100, 718);
+        Controls.Add(lblWarningResults);
+        Controls.Add(btnClearFilters);
         Controls.Add(menuStrip1);
         Controls.Add(statusStrip1);
         Controls.Add(splitContainer);
         Controls.Add(pnlFilters);
+        Controls.Add(lblResultCount);
         Controls.Add(lblExcludedFolderSummary);
         Controls.Add(btnExcludeFolders);
         Controls.Add(nudMainMaxResults);
         Controls.Add(lblMainMaxResults);
-        Controls.Add(lblSearchAttachments);
         Controls.Add(chkSearchAttachments);
-        Controls.Add(lblSearchBody);
+        Controls.Add(lblSearchAttachments);
         Controls.Add(chkSearchBody);
+        Controls.Add(lblSearchBody);
         Controls.Add(dtpTo);
         Controls.Add(dtpFrom);
-        Controls.Add(lblUseDateRange);
         Controls.Add(chkUseDateRange);
-        Controls.Add(lblShowPreview);
+        Controls.Add(lblUseDateRange);
         Controls.Add(chkShowPreview);
+        Controls.Add(lblShowPreview);
         Controls.Add(btnCancel);
         Controls.Add(btnSearch);
+        Controls.Add(btnSelectSearchFolders);
         Controls.Add(cmbQuery);
         Controls.Add(lblQuery);
         MainMenuStrip = menuStrip1;
@@ -591,14 +723,24 @@ partial class Form1
 
     private MenuStrip menuStrip1;
     private ToolStripMenuItem mnuInstellingen;
+    private ToolStripMenuItem mnuExport;
+    private ToolStripMenuItem mnuExportCsv;
+    private ToolStripMenuItem mnuIndex;
+    private ToolStripMenuItem mnuIndexManage;
+    private ToolStripMenuItem mnuIndexRefresh;
+    private ToolStripMenuItem mnuIndexRebuild;
     private ToolStripMenuItem mnuHelp;
     private ToolStripMenuItem mnuHelpHelp;
     private ToolStripMenuItem mnuHelpInfo;
     private ToolStripMenuItem mnuHelpCheckUpdates;
     private Label lblQuery;
     private ComboBox cmbQuery;
-    private Button btnSearch;
-    private Button btnCancel;
+    private MaterialSkin.Controls.MaterialButton btnSelectSearchFolders;
+    private MaterialSkin.Controls.MaterialButton btnSearch;
+    private MaterialSkin.Controls.MaterialButton btnCancel;
+    private MaterialSkin.Controls.MaterialButton btnClearFilters;
+    private Label lblResultCount;
+    private Label lblWarningResults;
     private Label lblShowPreview;
     private MaterialSkin.Controls.MaterialSwitch chkShowPreview;
     private Label lblUseDateRange;

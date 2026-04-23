@@ -12,9 +12,10 @@ internal sealed class SearchCriteria
     public bool UsePersistentIndex { get; init; }
     public DateTime? From { get; init; }
     public DateTime? To { get; init; }
-    public int MaxResults { get; init; } = 500;
+    public int MaxResults { get; init; } = 5000;
     public IReadOnlyList<string> SelectedStoreIds { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> ExcludedFolderEntryIds { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> IncludedFolderPaths { get; init; } = Array.Empty<string>();
     public IReadOnlySet<string> ExcludedAttachmentExtensions { get; init; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -22,6 +23,12 @@ internal sealed class MailStoreInfo
 {
     public required string DisplayName { get; init; }
     public required string StoreId { get; init; }
+}
+
+internal sealed class SearchResultSet
+{
+    public required IReadOnlyList<EmailSearchResult> Results { get; init; }
+    public required int TotalMatches { get; init; }
 }
 
 internal sealed class EmailSearchResult
@@ -361,7 +368,7 @@ internal static class OutlookSearcher
         }, cancellationToken);
     }
 
-    public static Task<IReadOnlyList<EmailSearchResult>> SearchAsync(
+    public static Task<SearchResultSet> SearchAsync(
         SearchCriteria criteria,
         IProgress<string>? progress,
         IProgress<EmailSearchResult>? resultProgress,
@@ -388,7 +395,7 @@ internal static class OutlookSearcher
         return SearchDirectAsync(criteria, progress, resultProgress, cancellationToken);
     }
 
-    private static IReadOnlyList<EmailSearchResult> FilterIndex(
+    private static SearchResultSet FilterIndex(
         PersistentSearchIndex index,
         SearchCriteria criteria,
         IProgress<string>? progress,
@@ -398,8 +405,28 @@ internal static class OutlookSearcher
         var results = new List<EmailSearchResult>(Math.Min(criteria.MaxResults, 2000));
         var storeSet = new HashSet<string>(criteria.SelectedStoreIds, StringComparer.OrdinalIgnoreCase);
         var excludedFolders = new HashSet<string>(criteria.ExcludedFolderEntryIds, StringComparer.OrdinalIgnoreCase);
+        int totalMatches = 0;
 
-        progress?.Report($"Zoeken in index van {index.BuiltAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
+        var indexAge = DateTime.UtcNow - index.BuiltAtUtc;
+        var indexAgeHours = (int)indexAge.TotalHours;
+
+        string ageWarning = indexAgeHours > 24 
+            ? $" (⚠ {indexAgeHours / 24} dagen oud - mogelijk verouderd)"
+            : indexAgeHours > 6
+            ? $" (⚠ {indexAgeHours} uur oud)"
+            : "";
+
+        progress?.Report($"Zoeken in index van {index.BuiltAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}{ageWarning}");
+
+        // DEBUG: Log aantal items in index en eerste paar subjects
+        System.Diagnostics.Debug.WriteLine($"[INDEX] Total items in index: {index.Items.Count}");
+        System.Diagnostics.Debug.WriteLine($"[INDEX] Index age: {indexAgeHours} hours");
+        System.Diagnostics.Debug.WriteLine($"[INDEX] Query: '{criteria.Query}'");
+        int debugCount = 0;
+        foreach (var debugItem in index.Items.Take(5))
+        {
+            System.Diagnostics.Debug.WriteLine($"[INDEX] Sample {++debugCount}: '{debugItem.Subject}'");
+        }
 
         foreach (var item in index.Items)
         {
@@ -411,6 +438,11 @@ internal static class OutlookSearcher
             }
 
             if (excludedFolders.Contains(item.FolderEntryId))
+            {
+                continue;
+            }
+
+            if (criteria.IncludedFolderPaths.Count > 0 && !criteria.IncludedFolderPaths.Contains(item.FolderPath))
             {
                 continue;
             }
@@ -433,32 +465,48 @@ internal static class OutlookSearcher
                 continue;
             }
 
-            var result = new EmailSearchResult
-            {
-                Mailbox = item.Mailbox,
-                FolderPath = item.FolderPath,
-                ReceivedTime = item.ReceivedTime,
-                Subject = item.Subject,
-                Sender = item.Sender,
-                Recipients = item.ToRecipients,
-                EntryId = item.EntryId,
-                StoreId = item.StoreId,
-                HasAttachments = item.HasAttachments
-            };
+            // Tel alle matches
+            totalMatches++;
 
-            results.Add(result);
-            resultProgress?.Report(result);
-
-            if (results.Count >= criteria.MaxResults)
+            // Voeg alleen eerste MaxResults toe aan resultatenlijst
+            if (results.Count < criteria.MaxResults)
             {
-                break;
+                var result = new EmailSearchResult
+                {
+                    Mailbox = item.Mailbox,
+                    FolderPath = item.FolderPath,
+                    ReceivedTime = item.ReceivedTime,
+                    Subject = item.Subject,
+                    Sender = item.Sender,
+                    Recipients = item.ToRecipients,
+                    EntryId = item.EntryId,
+                    StoreId = item.StoreId,
+                    HasAttachments = item.HasAttachments
+                };
+
+                results.Add(result);
+                resultProgress?.Report(result);
             }
         }
 
-        return results;
+        // Waarschuw als de index mogelijk verouderd is
+        if (indexAge.TotalHours > 6)
+        {
+            var ageText = indexAge.TotalHours > 24 
+                ? $"{(int)(indexAge.TotalHours / 24)} dagen"
+                : $"{(int)indexAge.TotalHours} uur";
+
+            progress?.Report($"⚠ Index is {ageText} oud. Nieuwe berichten ontbreken mogelijk. Ververs via Instellingen.");
+        }
+
+        return new SearchResultSet 
+        { 
+            Results = results,
+            TotalMatches = totalMatches
+        };
     }
 
-    private static Task<IReadOnlyList<EmailSearchResult>> SearchDirectAsync(
+    private static Task<SearchResultSet> SearchDirectAsync(
         SearchCriteria criteria,
         IProgress<string>? progress,
         IProgress<EmailSearchResult>? resultProgress,
@@ -525,6 +573,12 @@ internal static class OutlookSearcher
                                     return false;
                                 }
 
+                                string folderPath = SafeString(folder.FolderPath);
+                                if (criteria.IncludedFolderPaths.Count > 0 && !criteria.IncludedFolderPaths.Contains(folderPath))
+                                {
+                                    return false;
+                                }
+
                                 if (!MatchesDateRange(mail.ReceivedTime, criteria.From, criteria.To))
                                 {
                                     return false;
@@ -577,7 +631,11 @@ internal static class OutlookSearcher
                     }
                 }
 
-                return (IReadOnlyList<EmailSearchResult>)results;
+                return new SearchResultSet
+                {
+                    Results = results,
+                    TotalMatches = results.Count // Voor DirectSearch kunnen we niet verder tellen zonder alles te scannen
+                };
             }
             finally
             {
@@ -817,7 +875,9 @@ internal static class OutlookSearcher
         attachmentText ??= string.Empty;
 
         string normalizedQuery = query.Trim();
-        if (normalizedQuery.Contains('+') || normalizedQuery.Contains('-'))
+        bool usesTokenQuery = normalizedQuery.Contains('+') || normalizedQuery.Contains('-');
+
+        if (usesTokenQuery)
         {
             string searchable = string.Join(
                 "\n",
@@ -832,6 +892,7 @@ internal static class OutlookSearcher
 
         var comparison = StringComparison.OrdinalIgnoreCase;
 
+        // Exact match first (fastest)
         if (subject.Contains(query, comparison) ||
             sender.Contains(query, comparison) ||
             toRecipients.Contains(query, comparison))
@@ -847,6 +908,27 @@ internal static class OutlookSearcher
         if (searchAttachments && attachmentText.Contains(query, comparison))
         {
             return true;
+        }
+
+        // Fuzzy match for queries with 5+ chars (tolerates 1-2 typos)
+        if (query.Length >= 5)
+        {
+            if (ContainsFuzzy(subject, query, comparison) ||
+                ContainsFuzzy(sender, query, comparison) ||
+                ContainsFuzzy(toRecipients, query, comparison))
+            {
+                return true;
+            }
+
+            if (searchBody && ContainsFuzzy(body, query, comparison))
+            {
+                return true;
+            }
+
+            if (searchAttachments && ContainsFuzzy(attachmentText, query, comparison))
+            {
+                return true;
+            }
         }
 
         return false;
@@ -880,7 +962,9 @@ internal static class OutlookSearcher
 
         foreach (string token in excluded)
         {
-            if (haystack.Contains(token, comparison))
+            // For excluded tokens, use exact match or fuzzy for longer tokens
+            if (haystack.Contains(token, comparison) || 
+                (token.Length >= 5 && ContainsFuzzy(haystack, token, comparison)))
             {
                 return false;
             }
@@ -888,7 +972,9 @@ internal static class OutlookSearcher
 
         foreach (string token in required)
         {
-            if (!haystack.Contains(token, comparison))
+            // For required tokens, use exact match or fuzzy for longer tokens
+            if (!haystack.Contains(token, comparison) && 
+                !(token.Length >= 5 && ContainsFuzzy(haystack, token, comparison)))
             {
                 return false;
             }
@@ -901,13 +987,113 @@ internal static class OutlookSearcher
 
         foreach (string token in optional)
         {
-            if (haystack.Contains(token, comparison))
+            // For optional tokens, use exact match or fuzzy for longer tokens
+            if (haystack.Contains(token, comparison) || 
+                (token.Length >= 5 && ContainsFuzzy(haystack, token, comparison)))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Check if text contains query with fuzzy matching (allows 1-2 character differences).
+    /// Splits text into words and checks if any word is similar to the query.
+    /// </summary>
+    private static bool ContainsFuzzy(string text, string query, StringComparison comparison)
+    {
+        if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(query))
+        {
+            return false;
+        }
+
+        // Split text into words and check each word
+        var words = text.Split(new[] { ' ', '\t', '\n', '\r', '.', ',', ';', ':', '!', '?' }, 
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        int maxDistance = query.Length <= 7 ? 1 : 2; // Allow 1 typo for short words, 2 for longer
+
+        foreach (var word in words)
+        {
+            if (word.Length < 3) continue; // Skip very short words
+
+            // Quick length check - if difference is > maxDistance, skip expensive calculation
+            int lengthDiff = Math.Abs(word.Length - query.Length);
+            if (lengthDiff > maxDistance)
+            {
+                continue;
+            }
+
+            int distance = LevenshteinDistance(word, query, comparison);
+
+            if (distance <= maxDistance)
+            {
+                System.Diagnostics.Debug.WriteLine($"[FUZZY] ✓ MATCH: '{word}' ≈ '{query}' (distance={distance})");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Calculate Levenshtein distance between two strings (number of edits needed).
+    /// Optimized version that stops early if distance exceeds maxDistance.
+    /// </summary>
+    private static int LevenshteinDistance(string s1, string s2, StringComparison comparison)
+    {
+        // Normalize for case-insensitive comparison
+        if (comparison == StringComparison.OrdinalIgnoreCase)
+        {
+            s1 = s1.ToLowerInvariant();
+            s2 = s2.ToLowerInvariant();
+        }
+
+        int len1 = s1.Length;
+        int len2 = s2.Length;
+
+        // Quick check for exact match
+        if (s1 == s2) return 0;
+
+        // If one string is empty, distance is length of other
+        if (len1 == 0) return len2;
+        if (len2 == 0) return len1;
+
+        // Create distance matrix (only need current and previous row)
+        int[] previousRow = new int[len2 + 1];
+        int[] currentRow = new int[len2 + 1];
+
+        // Initialize first row
+        for (int j = 0; j <= len2; j++)
+        {
+            previousRow[j] = j;
+        }
+
+        // Calculate distances
+        for (int i = 1; i <= len1; i++)
+        {
+            currentRow[0] = i;
+
+            for (int j = 1; j <= len2; j++)
+            {
+                int cost = s1[i - 1] == s2[j - 1] ? 0 : 1;
+
+                currentRow[j] = Math.Min(
+                    Math.Min(
+                        currentRow[j - 1] + 1,      // insertion
+                        previousRow[j] + 1),        // deletion
+                    previousRow[j - 1] + cost);     // substitution
+            }
+
+            // Swap rows
+            var temp = previousRow;
+            previousRow = currentRow;
+            currentRow = temp;
+        }
+
+        return previousRow[len2];
     }
 
     private static bool MatchesDateRange(DateTime receivedTime, DateTime? from, DateTime? to)

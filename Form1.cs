@@ -16,14 +16,18 @@ public partial class Form1 : MaterialForm
     private CancellationTokenSource? _searchCancellation;
     private CancellationTokenSource? _previewCancellation;
     private bool _isAutoIndexRunning;
+    private bool _isBackgroundIndexing;
+    private System.Windows.Forms.Timer? _backgroundIndexStatusTimer;
     private List<MailboxFolderRoot> _folderRoots = new();
     private List<string> _folderTreeStoreIds = new();
     private List<StoreListItem> _availableStores = new();
     private Dictionary<string, TextBox> _columnFilterMap = new();
     private Dictionary<string, Button> _dropdownButtonMap = new();
     private Dictionary<string, HashSet<string>> _dropdownFilterMap = new();
+    private HashSet<string> _selectedSearchFolders = new();
     private string _sortColumn = nameof(EmailSearchResult.ReceivedTime);
     private bool _sortAscending;
+    private bool IsEnglish => Strings.IsEnglish;
 
     public Form1()
     {
@@ -110,6 +114,17 @@ public partial class Form1 : MaterialForm
         chkShowPreview.CheckedChanged += (_, _) => UpdatePreviewVisibility();
         dgvResults.SelectionChanged += dgvResults_SelectionChanged;
 
+        // Context menu voor results grid
+        var contextMenu = new ContextMenuStrip();
+        var locateMenuItem = new ToolStripMenuItem();
+        locateMenuItem.Click += (_, _) => LocateSelectedEmailInOutlook();
+        contextMenu.Items.Add(locateMenuItem);
+        dgvResults.ContextMenuStrip = contextMenu;
+        dgvResults.Tag = locateMenuItem; // Opslaan voor ApplyStrings
+
+        // Clear filters button
+        btnClearFilters.Click += btnClearFilters_Click;
+
         _indexRefreshTimer.Interval = 30000;
         _indexRefreshTimer.Tick += async (_, _) => await TryRunAutoIndexRefreshAsync();
         _indexRefreshTimer.Start();
@@ -120,12 +135,68 @@ public partial class Form1 : MaterialForm
 
     private async void Form1_Load(object sender, EventArgs e)
     {
+        // Set title with version number
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        Text = $"Outlook Classic Search - v{version?.Major}.{version?.Minor}.{version?.Build}";
+
         RestoreWindowBounds();
         RestoreColumnOrder();
         await RefreshStoresAsync();
         SyncFilterPositions();
+        UpdateClearFiltersButtonVisibility(); // Verberg clear filters button initieel
+        UpdateSearchFoldersButtonText(); // Initialize folder button text
+
+        // Load folder structure in background
+        _ = LoadFolderStructureAsync();
+
         if (_settings.IndexOnStartup)
             _ = TryRunAutoIndexRefreshAsync(force: true);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+
+        // Workaround voor MaterialSwitch dark mode rendering issue:
+        // Open modal dialog om MaterialSkin te triggeren (zoals Settings/IndexManager doet)
+        BeginInvoke(new Action(() =>
+        {
+            using var dummy = new MaterialForm
+            {
+                Size = new System.Drawing.Size(1, 1),
+                StartPosition = FormStartPosition.Manual,
+                Location = new System.Drawing.Point(-10000, -10000),
+                ShowInTaskbar = false,
+                ControlBox = false,
+                FormBorderStyle = FormBorderStyle.None,
+                Opacity = 0.01
+            };
+
+            // Gebruik ShowDialog zoals echte dialogs (sluit automatisch na timer)
+            var timer = new System.Windows.Forms.Timer { Interval = 1 };
+            timer.Tick += (s, args) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                dummy.Close();
+            };
+            timer.Start();
+
+            dummy.ShowDialog(this);
+
+            // Nu refresh alle styling
+            AppTheme.Apply(this);
+            AppTheme.ApplyPrimaryStyle(btnSearch);
+            AppTheme.ApplySecondaryStyle(btnCancel);
+            AppTheme.ApplySecondaryStyle(btnExcludeFolders);
+            AppTheme.StyleMaterialSwitch(chkShowPreview);
+            AppTheme.StyleMaterialSwitch(chkUseDateRange);
+            AppTheme.StyleMaterialSwitch(chkHasAttachment);
+            AppTheme.StyleMaterialSwitch(chkSearchBody);
+            AppTheme.StyleMaterialSwitch(chkSearchAttachments);
+
+            Refresh();
+        }));
     }
 
     private void RestoreWindowBounds()
@@ -158,6 +229,8 @@ public partial class Form1 : MaterialForm
         _previewCancellation = null;
         _filterDebounceTimer.Stop();
         _filterDebounceTimer.Dispose();
+        _backgroundIndexStatusTimer?.Stop();
+        _backgroundIndexStatusTimer?.Dispose();
         SaveWindowBounds();
         SaveSettings();
     }
@@ -234,6 +307,113 @@ public partial class Form1 : MaterialForm
         }
     }
 
+    private async void btnSelectSearchFolders_Click(object sender, EventArgs e)
+    {
+        var selectedStores = GetSelectedStores();
+        if (selectedStores.Count == 0)
+        {
+            MessageBox.Show(Strings.MsgSelectMailbox, Strings.MsgSelectMailboxTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var selectedStoreIds = selectedStores.Select(s => s.StoreId).ToList();
+
+        // Check of we de folder tree moeten herladen (andere stores geselecteerd)
+        bool needsReload = _folderRoots.Count == 0 || 
+            !selectedStoreIds.SequenceEqual(_folderTreeStoreIds);
+
+        if (needsReload)
+        {
+            SetBusy(true, Strings.SettingsMsgLoadingFolders);
+            try
+            {
+                var roots = await OutlookSearcher.GetFolderTreeAsync(selectedStoreIds, CancellationToken.None);
+                _folderRoots = roots.ToList();
+                _folderTreeStoreIds = selectedStoreIds;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fout bij ophalen mappen: {ex.Message}", "Fout", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            finally
+            {
+                SetBusy(false, Strings.StatusReady);
+            }
+        }
+
+        var availableFolders = CollectFolderPaths(_folderRoots).OrderBy(f => f).ToList();
+
+        if (availableFolders.Count == 0)
+        {
+            MessageBox.Show("Geen mappen gevonden.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var buttonRect = btnSelectSearchFolders.RectangleToScreen(btnSelectSearchFolders.ClientRectangle);
+        var dropdownLocation = new Point(buttonRect.Left, buttonRect.Bottom);
+
+        using var dropdown = new SearchableFilterDropdown(availableFolders, _selectedSearchFolders, dropdownLocation);
+
+        dropdown.ShowDialog(this);
+        UpdateSearchFoldersButtonText();
+        UpdateClearFiltersButtonVisibility();
+    }
+
+    private static List<string> CollectFolderPaths(IEnumerable<MailboxFolderRoot> roots)
+    {
+        var paths = new List<string>();
+        foreach (var root in roots)
+        {
+            CollectFolderPathsRecursive(root.Children, paths);
+        }
+        return paths;
+    }
+
+    private static void CollectFolderPathsRecursive(IEnumerable<MailboxFolderNode> nodes, List<string> paths)
+    {
+        foreach (var node in nodes)
+        {
+            paths.Add(node.FolderPath);
+            CollectFolderPathsRecursive(node.Children, paths);
+        }
+    }
+
+    private void UpdateSearchFoldersButtonText()
+    {
+        if (_selectedSearchFolders.Count == 0)
+        {
+            btnSelectSearchFolders.Text = Strings.BtnAllFolders + " ▼";
+        }
+        else
+        {
+            btnSelectSearchFolders.Text = $"{_selectedSearchFolders.Count} {(Strings.IsEnglish ? "folder(s)" : "map(pen)")} ▼";
+        }
+    }
+
+    private async Task LoadFolderStructureAsync()
+    {
+        var selectedStores = GetSelectedStores();
+        if (selectedStores.Count == 0)
+            return;
+
+        var selectedStoreIds = selectedStores.Select(s => s.StoreId).ToList();
+
+        SetBusy(true, Strings.SettingsMsgLoadingFolders);
+        try
+        {
+            var roots = await OutlookSearcher.GetFolderTreeAsync(selectedStoreIds, CancellationToken.None);
+            _folderRoots = roots.ToList();
+            _folderTreeStoreIds = selectedStoreIds;
+            SetBusy(false, Strings.StatusReady);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load folder structure: {ex.Message}");
+            SetBusy(false, Strings.StatusReady);
+        }
+    }
+
 
 
     private async void btnSearch_Click(object sender, EventArgs e)
@@ -264,6 +444,7 @@ public partial class Form1 : MaterialForm
             MaxResults = _settings.MaxResults,
             SelectedStoreIds = selectedStores.Select(s => s.StoreId).ToArray(),
             ExcludedFolderEntryIds = _settings.ExcludedFolderEntryIds,
+            IncludedFolderPaths = _selectedSearchFolders.ToList(),
             ExcludedAttachmentExtensions = _settings.ExcludeAttachmentExtensions
                 ? AppSettingsParser.ParseExtensions(_settings.ExcludedAttachmentExtensionsRaw)
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -274,6 +455,9 @@ public partial class Form1 : MaterialForm
         _searchCancellation = new CancellationTokenSource();
         _allResults.Clear();
         _visibleResults.Clear();
+        lblResultCount.Text = string.Empty;
+        lblWarningResults.Text = string.Empty;
+        lblWarningResults.Visible = false;
         ClearDropdownFilters();
 
         try
@@ -287,14 +471,45 @@ public partial class Form1 : MaterialForm
                     _visibleResults.Add(result);
                 }
             });
-            var results = await OutlookSearcher.SearchAsync(criteria, progress, resultProgress, _searchCancellation.Token);
+            var resultSet = await OutlookSearcher.SearchAsync(criteria, progress, resultProgress, _searchCancellation.Token);
 
             // resultProgress callbacks are posted async to the UI message queue.
             // BeginInvoke ensures ApplyResultFilter runs after all pending callbacks have drained,
             // so _allResults is fully populated and the sort is correctly applied.
             BeginInvoke(ApplyResultFilter);
 
-            toolStripStatusLabel1.Text = string.Format(Strings.StatusSearchDoneFmt, results.Count);
+            // Toon aantal zoekresultaten met waarschuwing als niet alles wordt weergegeven
+            string finalStatus;
+            if (resultSet.Results.Count >= criteria.MaxResults && resultSet.TotalMatches > resultSet.Results.Count)
+            {
+                finalStatus = string.Format(Strings.StatusSearchDoneMaxReachedFmt, resultSet.Results.Count);
+                lblResultCount.Text = string.Format(Strings.LblResultCountMaxFmt, resultSet.TotalMatches, resultSet.Results.Count);
+            }
+            else
+            {
+                finalStatus = string.Format(Strings.StatusSearchDoneDetailedFmt, resultSet.TotalMatches);
+                lblResultCount.Text = string.Format(Strings.LblResultCountFmt, resultSet.TotalMatches);
+            }
+
+            // Toon waarschuwing of info bericht
+            if (resultSet.TotalMatches == 0)
+            {
+                lblWarningResults.Text = Strings.MsgNoResults;
+                lblWarningResults.ForeColor = Color.Orange;
+                lblWarningResults.Visible = true;
+            }
+            else if (resultSet.TotalMatches > _settings.TooManyResultsWarningThreshold)
+            {
+                lblWarningResults.Text = string.Format(Strings.MsgTooManyResultsFmt, _settings.TooManyResultsWarningThreshold);
+                lblWarningResults.ForeColor = Color.Orange;
+                lblWarningResults.Visible = true;
+            }
+            else
+            {
+                lblWarningResults.Visible = false;
+            }
+
+            toolStripStatusLabel1.Text = finalStatus;
             SaveSettings();
         }
         catch (OperationCanceledException)
@@ -316,7 +531,8 @@ public partial class Form1 : MaterialForm
             _searchCancellation?.Dispose();
             _searchCancellation = null;
             _previewCancellation?.Cancel();
-            SetBusy(false, toolStripStatusLabel1.Text ?? string.Empty);
+            // Gebruik de huidige statusbalk tekst (die hierboven is gezet)
+            SetBusy(false, toolStripStatusLabel1.Text ?? Strings.StatusReady);
         }
     }
 
@@ -425,6 +641,39 @@ public partial class Form1 : MaterialForm
         info.ShowDialog(this);
     }
 
+    private void mnuExportCsv_Click(object sender, EventArgs e)
+    {
+        ExportToCsv();
+    }
+
+    private void mnuIndexManage_Click(object sender, EventArgs e)
+    {
+        // Open index manager (same as settings button)
+        ShowIndexManager();
+    }
+
+    private async void mnuIndexRefresh_Click(object sender, EventArgs e)
+    {
+        // Quick refresh without opening manager
+        await RefreshIndexAsync();
+    }
+
+    private async void mnuIndexRebuild_Click(object sender, EventArgs e)
+    {
+        // Rebuild index without opening manager
+        var result = MessageBox.Show(
+            IsEnglish ? "Are you sure you want to rebuild the index? This may take a while." 
+                      : "Weet je zeker dat je de index opnieuw wilt opbouwen? Dit kan even duren.",
+            IsEnglish ? "Rebuild index" : "Index opnieuw opbouwen",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (result == DialogResult.Yes)
+        {
+            await RebuildIndexAsync();
+        }
+    }
+
     private async void mnuHelpCheckUpdates_Click(object sender, EventArgs e)
     {
         // Toon "checking" cursor
@@ -469,6 +718,201 @@ public partial class Form1 : MaterialForm
         {
             Cursor = Cursors.Default;
         }
+    }
+
+    private void btnClearFilters_Click(object? sender, EventArgs e)
+    {
+        // Clear alle TextBox filters
+        foreach (var textBox in _columnFilterMap.Values)
+        {
+            textBox.Clear();
+        }
+
+        // Clear alle dropdown filters
+        foreach (var filterSet in _dropdownFilterMap.Values)
+        {
+            filterSet.Clear();
+        }
+
+        // Clear search folders filter
+        _selectedSearchFolders.Clear();
+        UpdateSearchFoldersButtonText();
+
+        // Update dropdown button texts
+        UpdateAllDropdownButtonTexts();
+
+        // Reapply filter (toont nu alle results)
+        ApplyResultFilter();
+
+        // Update clear button visibility
+        UpdateClearFiltersButtonVisibility();
+    }
+
+    private bool HasActiveFilters()
+    {
+        // Check TextBox filters
+        foreach (var textBox in _columnFilterMap.Values)
+        {
+            if (!string.IsNullOrWhiteSpace(textBox.Text))
+                return true;
+        }
+
+        // Check dropdown filters
+        foreach (var filterSet in _dropdownFilterMap.Values)
+        {
+            if (filterSet.Count > 0)
+                return true;
+        }
+
+        // Check search folders filter
+        if (_selectedSearchFolders.Count > 0)
+            return true;
+
+        return false;
+    }
+
+    private void UpdateClearFiltersButtonVisibility()
+    {
+        btnClearFilters.Visible = HasActiveFilters();
+    }
+
+    private void LocateSelectedEmailInOutlook()
+    {
+        if (dgvResults.SelectedRows.Count == 0)
+            return;
+
+        var result = (EmailSearchResult)dgvResults.SelectedRows[0].DataBoundItem;
+
+        try
+        {
+            using var outlookApp = new NetOffice.OutlookApi.Application();
+
+            // Vind de store
+            var store = outlookApp.Session.Stores.FirstOrDefault(s => 
+                s.DisplayName.Equals(result.Mailbox, StringComparison.OrdinalIgnoreCase));
+
+            if (store == null)
+            {
+                MessageBox.Show(
+                    Strings.ErrLocateMailboxNotFound,
+                    Strings.ErrLocateTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Parse het folder path - Outlook geeft volledige path zoals "\\Mailbox\Folder\Subfolder"
+            // We moeten alleen het deel na de mailbox naam hebben
+            string relativePath = result.FolderPath;
+
+            // Verwijder de mailbox prefix uit het path (bijv. "\\M.Taffijn@dcterra.nl\")
+            if (relativePath.StartsWith("\\\\"))
+            {
+                // Skip eerste twee backslashes
+                relativePath = relativePath.Substring(2);
+
+                // Zoek de volgende backslash (einde van mailbox naam)
+                int nextSlash = relativePath.IndexOf('\\');
+                if (nextSlash > 0)
+                {
+                    // Neem alles na de mailbox naam
+                    relativePath = relativePath.Substring(nextSlash + 1);
+                }
+                else
+                {
+                    // Als er geen subfolders zijn, is dit de root
+                    relativePath = string.Empty;
+                }
+            }
+
+            // Vind de folder
+            var folder = FindFolderByPath(store.GetRootFolder(), relativePath);
+            if (folder == null)
+            {
+                MessageBox.Show(
+                    Strings.ErrLocateFolderNotFound,
+                    Strings.ErrLocateTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Gebruik Session.GetItemFromID om direct het mail item op te halen
+            NetOffice.OutlookApi.MailItem? mailItem = null;
+            try
+            {
+                var item = outlookApp.Session.GetItemFromID(result.EntryId, store.StoreID);
+                mailItem = item as NetOffice.OutlookApi.MailItem;
+            }
+            catch
+            {
+                // Item niet gevonden via EntryID
+            }
+
+            if (mailItem == null)
+            {
+                MessageBox.Show(
+                    Strings.ErrLocateMailNotFound,
+                    Strings.ErrLocateTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Navigeer naar de folder in de explorer en open de mail
+            var explorer = outlookApp.ActiveExplorer();
+            if (explorer != null)
+            {
+                // Ga naar de folder en activeer Outlook
+                explorer.CurrentFolder = folder;
+                explorer.Activate();
+
+                // Wacht tot de folder geladen is
+                System.Threading.Thread.Sleep(300);
+
+                // Open de mail - dit is de enige betrouwbare manier in Outlook
+                // om een specifiek item te "lokaliseren" en te selecteren
+                mailItem.Display(false); // false = modeless, blijft op achtergrond
+            }
+
+            toolStripStatusLabel1.Text = Strings.StatusLocatedInOutlook;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"{Strings.ErrLocateSummary}\n\n{ex.Message}",
+                Strings.ErrLocateTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private NetOffice.OutlookApi.MAPIFolder? FindFolderByPath(NetOffice.OutlookApi.MAPIFolder rootFolder, string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return rootFolder;
+
+        var parts = path.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        var currentFolder = rootFolder;
+
+        foreach (var part in parts)
+        {
+            bool found = false;
+            foreach (NetOffice.OutlookApi.MAPIFolder subfolder in currentFolder.Folders)
+            {
+                if (subfolder.Name.Equals(part, StringComparison.OrdinalIgnoreCase))
+                {
+                    currentFolder = subfolder;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+                return null;
+        }
+
+        return currentFolder;
     }
 
     private async Task RefreshStoresAsync()
@@ -701,6 +1145,12 @@ public partial class Form1 : MaterialForm
     {
         // Menu
         mnuInstellingen.Text = Strings.MenuSettings;
+        mnuExport.Text = Strings.MenuExport;
+        mnuExportCsv.Text = Strings.MenuExportCsv;
+        mnuIndex.Text = Strings.IndexTitle;
+        mnuIndexManage.Text = Strings.SettingsBtnManageIndex;
+        mnuIndexRefresh.Text = Strings.IndexBtnRefresh;
+        mnuIndexRebuild.Text = Strings.IndexBtnRebuild;
         mnuHelp.Text = Strings.MenuHelp;
         mnuHelpHelp.Text = Strings.MenuHelpItem;
         mnuHelpCheckUpdates.Text = Strings.MenuCheckForUpdates;
@@ -710,6 +1160,7 @@ public partial class Form1 : MaterialForm
         lblQuery.Text = Strings.LabelQuery;
         btnSearch.Text = Strings.BtnSearch;
         btnCancel.Text = Strings.BtnCancel;
+        btnClearFilters.Text = Strings.BtnClearFilters;
         lblShowPreview.Text = Strings.ChkShowPreview;
         lblUseDateRange.Text = Strings.ChkUseDateRange;
         lblSearchBody.Text = Strings.SettingsChkSearchBody;
@@ -732,6 +1183,10 @@ public partial class Form1 : MaterialForm
         // Status bar (only reset when idle)
         if (!toolStripProgressBar.Visible)
             toolStripStatusLabel1.Text = Strings.StatusReady;
+
+        // Context menu
+        if (dgvResults.Tag is ToolStripMenuItem locateItem)
+            locateItem.Text = Strings.ContextMenuLocateInOutlook;
 
         // Column headers
         foreach (DataGridViewColumn col in dgvResults.Columns)
@@ -765,6 +1220,7 @@ public partial class Form1 : MaterialForm
         _visibleResults.RaiseListChangedEvents = true;
         _visibleResults.ResetBindings();
         UpdateSortGlyphs();
+        UpdateClearFiltersButtonVisibility();
         _ = RefreshPreviewAsync();
     }
 
@@ -896,6 +1352,10 @@ public partial class Form1 : MaterialForm
     private void SyncFilterPositions()
     {
         if (_columnFilterMap.Count == 0 && _dropdownButtonMap.Count == 0) return;
+
+        // Zorg dat btnClearFilters altijd bovenop en links blijft (Z-order)
+        btnClearFilters.BringToFront();
+
         foreach (DataGridViewColumn col in dgvResults.Columns)
         {
             var rect = dgvResults.GetColumnDisplayRectangle(col.Index, false);
@@ -947,68 +1407,15 @@ public partial class Form1 : MaterialForm
                 .ToList();
         }
 
-        var clb = new CheckedListBox
+        // Gebruik zoekbare dropdown met live filtering
+        var screenLocation = anchor.PointToScreen(new Point(0, anchor.Height));
+        var dropdown = new SearchableFilterDropdown(values, selected, screenLocation);
+        dropdown.SelectionChanged += (s, e) =>
         {
-            CheckOnClick = true,
-            IntegralHeight = false,
-            BackColor = AppTheme.Surface,
-            ForeColor = AppTheme.TextPrimary,
-            BorderStyle = BorderStyle.None,
-            HorizontalScrollbar = true,
-        };
-        clb.Items.AddRange(values.ToArray<object>());
-
-        // Dynamic size: measure widest item text, apply min/max
-        int itemH = clb.ItemHeight > 0 ? clb.ItemHeight : 18;
-        int measuredW = MeasureListWidth(clb, values);
-        int popupW = Math.Clamp(measuredW, 120, 480);
-        int popupH = Math.Clamp(values.Count * itemH + 4, 60, 320);
-        clb.Size = new Size(popupW, popupH);
-
-        // Apply checked state
-        for (int i = 0; i < clb.Items.Count; i++)
-        {
-            if (selected.Contains((string)clb.Items[i]))
-                clb.SetItemChecked(i, true);
-        }
-
-        var host = new ToolStripControlHost(clb)
-        {
-            Padding = new Padding(0),
-            Margin = new Padding(0),
-            AutoSize = false,
-            Size = clb.Size
-        };
-        var popup = new ToolStripDropDown
-        {
-            AutoSize = false,
-            Padding = new Padding(1),
-        };
-        popup.Items.Add(host);
-        popup.Width = clb.Width + 2;
-        popup.Height = clb.Height + 2;
-
-        clb.ItemCheck += (_, e) =>
-        {
-            string item = (string)clb.Items[e.Index];
-            if (e.NewValue == CheckState.Checked) selected.Add(item);
-            else selected.Remove(item);
             UpdateDropdownButtonText(columnProp, anchor);
             RestartFilterDebounce();
         };
-
-        popup.Show(anchor, new Point(0, anchor.Height));
-    }
-
-    private static int MeasureListWidth(CheckedListBox clb, IList<string> values)
-    {
-        // Checkbox width (~20px) + text + padding
-        const int checkboxW = 22;
-        const int paddingW = 12;
-        if (values.Count == 0) return 120;
-        using var g = clb.CreateGraphics();
-        float maxW = values.Max(v => g.MeasureString(v, clb.Font).Width);
-        return (int)Math.Ceiling(maxW) + checkboxW + paddingW;
+        dropdown.Show(this);
     }
 
     private void UpdateDropdownButtonText(string columnProp, Button btn)
@@ -1147,6 +1554,180 @@ public partial class Form1 : MaterialForm
     private void materialLabel1_Click(object sender, EventArgs e)
     {
 
+    }
+
+    // Export functionaliteit
+    private void ExportToCsv()
+    {
+        if (_visibleResults.Count == 0)
+        {
+            MessageBox.Show(
+                Strings.ExportNoResultsMsg,
+                Strings.ExportNoResults,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        using var sfd = new SaveFileDialog
+        {
+            Filter = Strings.ExportCsvFilter,
+            FileName = $"outlook_search_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+            DefaultExt = "csv"
+        };
+
+        if (sfd.ShowDialog() == DialogResult.OK)
+        {
+            try
+            {
+                ExportResultsToCsv(sfd.FileName);
+                toolStripStatusLabel1.Text = string.Format(Strings.ExportSuccessFmt, _visibleResults.Count, Path.GetFileName(sfd.FileName));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{Strings.ExportFailedTitle}\n\n{ex.Message}",
+                    Strings.ExportFailedTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+    }
+
+    private void ExportResultsToCsv(string filePath)
+    {
+        using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
+
+        // Write header
+        writer.WriteLine("Mailbox;Map;Datum;Onderwerp;Afzender;Geadresseerde;Bijlage");
+
+        // Write data rows
+        foreach (var result in _visibleResults)
+        {
+            var line = string.Join(";",
+                EscapeCsvField(result.Mailbox),
+                EscapeCsvField(result.FolderPath),
+                result.ReceivedTime.ToString("yyyy-MM-dd HH:mm"),
+                EscapeCsvField(result.Subject),
+                EscapeCsvField(result.Sender),
+                EscapeCsvField(result.Recipients),
+                result.HasAttachments ? "Ja" : "Nee"
+            );
+            writer.WriteLine(line);
+        }
+    }
+
+    private static string EscapeCsvField(string field)
+    {
+        if (string.IsNullOrEmpty(field))
+            return "";
+
+        // Escape quotes and wrap in quotes if contains semicolon, quote, or newline
+        if (field.Contains(';') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+        {
+            return "\"" + field.Replace("\"", "\"\"") + "\"";
+        }
+
+        return field;
+    }
+
+    // Index management helpers
+    private void ShowIndexManager()
+    {
+        var selectedStoreIds = _settings.SelectedStoreIds ?? new List<string>();
+        var selectedStores = _availableStores
+            .Where(s => selectedStoreIds.Contains(s.StoreId))
+            .ToList();
+
+        if (selectedStores.Count == 0)
+        {
+            MessageBox.Show(
+                Strings.IndexMsgNoMailbox,
+                Strings.IndexMsgNoMailboxTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        var indexManager = new IndexManagerForm(selectedStores, _settings, _folderRoots);
+        indexManager.BackgroundIndexingChanged += OnBackgroundIndexingChanged;
+        indexManager.FormClosed += (s, e) => 
+        {
+            indexManager.BackgroundIndexingChanged -= OnBackgroundIndexingChanged;
+            indexManager.Dispose();
+        };
+        indexManager.Show(this);
+    }
+
+    private void OnBackgroundIndexingChanged(object? sender, bool isIndexing)
+    {
+        _isBackgroundIndexing = isIndexing;
+
+        if (isIndexing)
+        {
+            // Start timer om statusbalk te updaten met animatie
+            _backgroundIndexStatusTimer ??= new System.Windows.Forms.Timer { Interval = 500 };
+            _backgroundIndexStatusTimer.Tick -= UpdateBackgroundIndexStatus;
+            _backgroundIndexStatusTimer.Tick += UpdateBackgroundIndexStatus;
+            _backgroundIndexStatusTimer.Start();
+        }
+        else
+        {
+            // Stop timer en clear status
+            _backgroundIndexStatusTimer?.Stop();
+            if (!_isAutoIndexRunning && _searchCancellation == null)
+            {
+                toolStripStatusLabel1.Text = Strings.StatusReady;
+            }
+        }
+    }
+
+    private int _indexingAnimationFrame = 0;
+    private void UpdateBackgroundIndexStatus(object? sender, EventArgs e)
+    {
+        if (!_isBackgroundIndexing)
+            return;
+
+        var dots = new string('.', (_indexingAnimationFrame % 4));
+        toolStripStatusLabel1.Text = Strings.IsEnglish 
+            ? $"Background indexing{dots}" 
+            : $"Achtergrond indexeren{dots}";
+
+        _indexingAnimationFrame++;
+    }
+
+    private async Task RefreshIndexAsync()
+    {
+        if (!_settings.UsePersistentIndexForSearch)
+        {
+            MessageBox.Show(
+                IsEnglish ? "Please enable 'Use persistent index' in Settings first."
+                          : "Schakel eerst 'Gebruik permanente index' in bij Instellingen.",
+                IsEnglish ? "Index not enabled" : "Index niet ingeschakeld",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        await TryRunAutoIndexRefreshAsync(force: true);
+    }
+
+    private async Task RebuildIndexAsync()
+    {
+        if (!_settings.UsePersistentIndexForSearch)
+        {
+            MessageBox.Show(
+                IsEnglish ? "Please enable 'Use persistent index' in Settings first."
+                          : "Schakel eerst 'Gebruik permanente index' in bij Instellingen.",
+                IsEnglish ? "Index not enabled" : "Index niet ingeschakeld",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        // Clear existing index and rebuild
+        PersistentIndexStore.Clear();
+        await TryRunAutoIndexRefreshAsync(force: true);
     }
 }
 

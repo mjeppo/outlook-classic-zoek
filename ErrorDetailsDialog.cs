@@ -28,6 +28,7 @@ internal static class ErrorDetailsDialog
         using var copyButton = new Button();
 
         form.Text = $"{title} - Technische details";
+        form.ShowInTaskbar = false;
         form.StartPosition = FormStartPosition.CenterParent;
         form.Size = new Size(980, 620);
         form.MinimumSize = new Size(780, 420);

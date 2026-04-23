@@ -36,15 +36,21 @@ partial class SettingsForm
         lblSearchHistoryMax = new Label();
         nudSearchHistoryMax = new NumericUpDown();
         btnClearHistory = new Button();
+        lblWarningThreshold = new Label();
+        nudWarningThreshold = new NumericUpDown();
         lblTheme = new Label();
         cmbTheme = new ComboBox();
         lblLanguage = new Label();
         cmbLanguage = new ComboBox();
         btnOK = new Button();
+        btnApply = new Button();
         btnCancel = new Button();
-        label1 = new Label();
+        lblExcludeAttachmentExt1 = new Label();
+        lblBijschriftBerichten = new Label();
+        lblMappenUitsluiten = new Label();
         ((System.ComponentModel.ISupportInitialize)nudMaxResults).BeginInit();
         ((System.ComponentModel.ISupportInitialize)nudSearchHistoryMax).BeginInit();
+        ((System.ComponentModel.ISupportInitialize)nudWarningThreshold).BeginInit();
         SuspendLayout();
         // 
         // chkSearchBody
@@ -125,7 +131,7 @@ partial class SettingsForm
         // lblMaxResults
         // 
         lblMaxResults.AutoSize = true;
-        lblMaxResults.Location = new Point(12, 114);
+        lblMaxResults.Location = new Point(12, 489);
         lblMaxResults.Name = "lblMaxResults";
         lblMaxResults.Size = new Size(111, 15);
         lblMaxResults.TabIndex = 36;
@@ -133,20 +139,20 @@ partial class SettingsForm
         // 
         // nudMaxResults
         // 
-        nudMaxResults.Location = new Point(128, 111);
+        nudMaxResults.Location = new Point(214, 487);
         nudMaxResults.Maximum = new decimal(new int[] { 5000, 0, 0, 0 });
         nudMaxResults.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
         nudMaxResults.Name = "nudMaxResults";
         nudMaxResults.Size = new Size(86, 23);
         nudMaxResults.TabIndex = 35;
-        nudMaxResults.Value = new decimal(new int[] { 500, 0, 0, 0 });
+        nudMaxResults.Value = new decimal(new int[] { 5000, 0, 0, 0 });
         nudMaxResults.ValueChanged += nudMaxResults_ValueChanged;
         // 
         // chkExcludeAttachmentExt
         // 
         chkExcludeAttachmentExt.AutoSize = true;
         chkExcludeAttachmentExt.Depth = 0;
-        chkExcludeAttachmentExt.Location = new Point(12, 133);
+        chkExcludeAttachmentExt.Location = new Point(12, 115);
         chkExcludeAttachmentExt.Margin = new Padding(0);
         chkExcludeAttachmentExt.MouseLocation = new Point(-1, -1);
         chkExcludeAttachmentExt.MouseState = MaterialSkin.MouseState.HOVER;
@@ -170,10 +176,10 @@ partial class SettingsForm
         // txtExcludedAttachmentExt
         // 
         txtExcludedAttachmentExt.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-        txtExcludedAttachmentExt.Location = new Point(12, 165);
+        txtExcludedAttachmentExt.Location = new Point(12, 147);
         txtExcludedAttachmentExt.Name = "txtExcludedAttachmentExt";
         txtExcludedAttachmentExt.PlaceholderText = ".zip;.png;.jpg;.jpeg;.gif";
-        txtExcludedAttachmentExt.Size = new Size(690, 23);
+        txtExcludedAttachmentExt.Size = new Size(738, 23);
         txtExcludedAttachmentExt.TabIndex = 34;
         // 
         // lblStores
@@ -188,7 +194,7 @@ partial class SettingsForm
         // btnRefreshStores
         // 
         btnRefreshStores.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        btnRefreshStores.Location = new Point(531, 194);
+        btnRefreshStores.Location = new Point(579, 194);
         btnRefreshStores.Name = "btnRefreshStores";
         btnRefreshStores.Size = new Size(171, 23);
         btnRefreshStores.TabIndex = 32;
@@ -203,7 +209,7 @@ partial class SettingsForm
         clbStores.FormattingEnabled = true;
         clbStores.Location = new Point(12, 220);
         clbStores.Name = "clbStores";
-        clbStores.Size = new Size(690, 184);
+        clbStores.Size = new Size(738, 184);
         clbStores.TabIndex = 10;
         // 
         // lblStoresStatus
@@ -216,18 +222,18 @@ partial class SettingsForm
         // 
         // btnChooseExcludedFolders
         // 
-        btnChooseExcludedFolders.Location = new Point(12, 416);
+        btnChooseExcludedFolders.Location = new Point(214, 422);
         btnChooseExcludedFolders.Name = "btnChooseExcludedFolders";
-        btnChooseExcludedFolders.Size = new Size(210, 27);
+        btnChooseExcludedFolders.Size = new Size(111, 27);
         btnChooseExcludedFolders.TabIndex = 30;
-        btnChooseExcludedFolders.Text = "Mappen uitsluiten van zoeken...";
+        btnChooseExcludedFolders.Text = "Kies map(pen)";
         btnChooseExcludedFolders.UseVisualStyleBackColor = true;
         btnChooseExcludedFolders.Click += btnChooseExcludedFolders_Click;
         // 
         // lblExcludedFolderSummary
         // 
         lblExcludedFolderSummary.AutoSize = true;
-        lblExcludedFolderSummary.Location = new Point(232, 422);
+        lblExcludedFolderSummary.Location = new Point(340, 428);
         lblExcludedFolderSummary.Name = "lblExcludedFolderSummary";
         lblExcludedFolderSummary.Size = new Size(126, 15);
         lblExcludedFolderSummary.TabIndex = 29;
@@ -235,7 +241,7 @@ partial class SettingsForm
         // 
         // btnManageIndex
         // 
-        btnManageIndex.Location = new Point(12, 452);
+        btnManageIndex.Location = new Point(578, 416);
         btnManageIndex.Name = "btnManageIndex";
         btnManageIndex.Size = new Size(140, 27);
         btnManageIndex.TabIndex = 28;
@@ -246,7 +252,7 @@ partial class SettingsForm
         // lblSearchHistoryMax
         // 
         lblSearchHistoryMax.AutoSize = true;
-        lblSearchHistoryMax.Location = new Point(12, 492);
+        lblSearchHistoryMax.Location = new Point(12, 457);
         lblSearchHistoryMax.Name = "lblSearchHistoryMax";
         lblSearchHistoryMax.Size = new Size(127, 15);
         lblSearchHistoryMax.TabIndex = 27;
@@ -254,7 +260,7 @@ partial class SettingsForm
         // 
         // nudSearchHistoryMax
         // 
-        nudSearchHistoryMax.Location = new Point(175, 488);
+        nudSearchHistoryMax.Location = new Point(214, 455);
         nudSearchHistoryMax.Maximum = new decimal(new int[] { 50, 0, 0, 0 });
         nudSearchHistoryMax.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
         nudSearchHistoryMax.Name = "nudSearchHistoryMax";
@@ -264,7 +270,7 @@ partial class SettingsForm
         // 
         // btnClearHistory
         // 
-        btnClearHistory.Location = new Point(252, 486);
+        btnClearHistory.Location = new Point(291, 453);
         btnClearHistory.Name = "btnClearHistory";
         btnClearHistory.Size = new Size(160, 27);
         btnClearHistory.TabIndex = 26;
@@ -272,10 +278,29 @@ partial class SettingsForm
         btnClearHistory.UseVisualStyleBackColor = true;
         btnClearHistory.Click += btnClearHistory_Click;
         // 
+        // lblWarningThreshold
+        // 
+        lblWarningThreshold.AutoSize = true;
+        lblWarningThreshold.Location = new Point(12, 522);
+        lblWarningThreshold.Name = "lblWarningThreshold";
+        lblWarningThreshold.Size = new Size(196, 15);
+        lblWarningThreshold.TabIndex = 29;
+        lblWarningThreshold.Text = "Waarschuwing te veel resultaten bij:";
+        // 
+        // nudWarningThreshold
+        // 
+        nudWarningThreshold.Location = new Point(214, 520);
+        nudWarningThreshold.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+        nudWarningThreshold.Minimum = new decimal(new int[] { 10, 0, 0, 0 });
+        nudWarningThreshold.Name = "nudWarningThreshold";
+        nudWarningThreshold.Size = new Size(62, 23);
+        nudWarningThreshold.TabIndex = 28;
+        nudWarningThreshold.Value = new decimal(new int[] { 100, 0, 0, 0 });
+        // 
         // lblTheme
         // 
         lblTheme.AutoSize = true;
-        lblTheme.Location = new Point(12, 526);
+        lblTheme.Location = new Point(12, 557);
         lblTheme.Name = "lblTheme";
         lblTheme.Size = new Size(47, 15);
         lblTheme.TabIndex = 25;
@@ -285,7 +310,7 @@ partial class SettingsForm
         // 
         cmbTheme.DropDownStyle = ComboBoxStyle.DropDownList;
         cmbTheme.Items.AddRange(new object[] { "Licht", "Donker", "Auto (Systeem)" });
-        cmbTheme.Location = new Point(130, 522);
+        cmbTheme.Location = new Point(214, 554);
         cmbTheme.Name = "cmbTheme";
         cmbTheme.Size = new Size(140, 23);
         cmbTheme.TabIndex = 22;
@@ -293,7 +318,7 @@ partial class SettingsForm
         // lblLanguage
         // 
         lblLanguage.AutoSize = true;
-        lblLanguage.Location = new Point(12, 560);
+        lblLanguage.Location = new Point(12, 591);
         lblLanguage.Name = "lblLanguage";
         lblLanguage.Size = new Size(81, 15);
         lblLanguage.TabIndex = 24;
@@ -303,7 +328,7 @@ partial class SettingsForm
         // 
         cmbLanguage.DropDownStyle = ComboBoxStyle.DropDownList;
         cmbLanguage.Items.AddRange(new object[] { "Nederlands", "English" });
-        cmbLanguage.Location = new Point(130, 556);
+        cmbLanguage.Location = new Point(214, 588);
         cmbLanguage.Name = "cmbLanguage";
         cmbLanguage.Size = new Size(140, 23);
         cmbLanguage.TabIndex = 23;
@@ -311,7 +336,7 @@ partial class SettingsForm
         // btnOK
         // 
         btnOK.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        btnOK.Location = new Point(540, 555);
+        btnOK.Location = new Point(498, 679);
         btnOK.Name = "btnOK";
         btnOK.Size = new Size(80, 27);
         btnOK.TabIndex = 1;
@@ -319,10 +344,21 @@ partial class SettingsForm
         btnOK.UseVisualStyleBackColor = true;
         btnOK.Click += btnOK_Click;
         // 
+        // btnApply
+        // 
+        btnApply.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+        btnApply.Location = new Point(588, 679);
+        btnApply.Name = "btnApply";
+        btnApply.Size = new Size(80, 27);
+        btnApply.TabIndex = 2;
+        btnApply.Text = "Toepassen";
+        btnApply.UseVisualStyleBackColor = true;
+        btnApply.Click += btnApply_Click;
+        // 
         // btnCancel
         // 
         btnCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        btnCancel.Location = new Point(630, 555);
+        btnCancel.Location = new Point(678, 679);
         btnCancel.Name = "btnCancel";
         btnCancel.Size = new Size(80, 27);
         btnCancel.TabIndex = 0;
@@ -330,15 +366,33 @@ partial class SettingsForm
         btnCancel.UseVisualStyleBackColor = true;
         btnCancel.Click += btnCancel_Click;
         // 
-        // label1
+        // lblExcludeAttachmentExt1
         // 
-        label1.AutoSize = true;
-        label1.Cursor = Cursors.Hand;
-        label1.Location = new Point(73, 143);
-        label1.Name = "label1";
-        label1.Size = new Size(284, 15);
-        label1.TabIndex = 103;
-        label1.Text = "Bijlage-extensies uitsluiten (woorden scheiden met ;)";
+        lblExcludeAttachmentExt1.AutoSize = true;
+        lblExcludeAttachmentExt1.Cursor = Cursors.Hand;
+        lblExcludeAttachmentExt1.Location = new Point(73, 125);
+        lblExcludeAttachmentExt1.Name = "lblExcludeAttachmentExt1";
+        lblExcludeAttachmentExt1.Size = new Size(284, 15);
+        lblExcludeAttachmentExt1.TabIndex = 103;
+        lblExcludeAttachmentExt1.Text = "Bijlage-extensies uitsluiten (woorden scheiden met ;)";
+        // 
+        // lblBijschriftBerichten
+        // 
+        lblBijschriftBerichten.AutoSize = true;
+        lblBijschriftBerichten.Location = new Point(291, 522);
+        lblBijschriftBerichten.Name = "lblBijschriftBerichten";
+        lblBijschriftBerichten.Size = new Size(57, 15);
+        lblBijschriftBerichten.TabIndex = 104;
+        lblBijschriftBerichten.Text = "berichten";
+        // 
+        // lblMappenUitsluiten
+        // 
+        lblMappenUitsluiten.AutoSize = true;
+        lblMappenUitsluiten.Location = new Point(12, 428);
+        lblMappenUitsluiten.Name = "lblMappenUitsluiten";
+        lblMappenUitsluiten.Size = new Size(162, 15);
+        lblMappenUitsluiten.TabIndex = 105;
+        lblMappenUitsluiten.Text = "Mappen uitsluiten bij zoeken:";
         // 
         // SettingsForm
         // 
@@ -346,14 +400,19 @@ partial class SettingsForm
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
         CancelButton = btnCancel;
-        ClientSize = new Size(722, 595);
-        Controls.Add(label1);
+        ClientSize = new Size(770, 719);
+        Controls.Add(lblMappenUitsluiten);
+        Controls.Add(lblBijschriftBerichten);
+        Controls.Add(lblExcludeAttachmentExt1);
         Controls.Add(btnCancel);
+        Controls.Add(btnApply);
         Controls.Add(btnOK);
         Controls.Add(cmbLanguage);
         Controls.Add(lblLanguage);
         Controls.Add(cmbTheme);
         Controls.Add(lblTheme);
+        Controls.Add(nudWarningThreshold);
+        Controls.Add(lblWarningThreshold);
         Controls.Add(btnClearHistory);
         Controls.Add(nudSearchHistoryMax);
         Controls.Add(lblSearchHistoryMax);
@@ -378,10 +437,12 @@ partial class SettingsForm
         MaximizeBox = false;
         MinimizeBox = false;
         Name = "SettingsForm";
+        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         Text = "Instellingen";
         ((System.ComponentModel.ISupportInitialize)nudMaxResults).EndInit();
         ((System.ComponentModel.ISupportInitialize)nudSearchHistoryMax).EndInit();
+        ((System.ComponentModel.ISupportInitialize)nudWarningThreshold).EndInit();
         ResumeLayout(false);
         PerformLayout();
     }
@@ -409,11 +470,16 @@ partial class SettingsForm
     private Label lblSearchHistoryMax;
     private NumericUpDown nudSearchHistoryMax;
     private Button btnClearHistory;
+    private Label lblWarningThreshold;
+    private NumericUpDown nudWarningThreshold;
     private Label lblTheme;
     private ComboBox cmbTheme;
     private Label lblLanguage;
     private ComboBox cmbLanguage;
     private Button btnOK;
+    private Button btnApply;
     private Button btnCancel;
-    private Label label1;
+    private Label lblExcludeAttachmentExt1;
+    private Label lblBijschriftBerichten;
+    private Label lblMappenUitsluiten;
 }
