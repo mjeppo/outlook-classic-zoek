@@ -1329,7 +1329,9 @@ internal static class OutlookSearcher
                 throw new InvalidOperationException("MAPI sessie kon niet worden gestart.");
             }
 
-            _ = mapi.CurrentUser?.Name;
+            // Geen CurrentUser: dat valt onder de Outlook Object Model Guard en wordt op beheerde pc's vaak geweigerd (E_ABORT).
+            _ = mapi.Stores?.Count;
+
             return (app, mapi);
         }
         catch (FileNotFoundException ex)
