@@ -19,7 +19,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-            - name: Publish self-contained
+      - name: Publish self-contained
         run: >
           dotnet publish OutlookClassicSearch.csproj -c Release -r ${{ matrix.rid }}
           --self-contained true
