@@ -13,20 +13,32 @@ jobs:
         rid: [ win-x64, win-x86 ]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
 
+      # Geen PublishSingleFile: NetOffice gebruikt Assembly.CodeBase, wat niet werkt in een single-file bundle.
       - name: Publish self-contained
         run: >
           dotnet publish OutlookClassicSearch.csproj -c Release -r ${{ matrix.rid }}
           --self-contained true
           -p:DebugType=none
+          -o publish/${{ matrix.rid }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Controleer output
+        shell: pwsh
+        run: |
+          $exe = "publish/${{ matrix.rid }}/OutlookClassicSearch.exe"
+          if (-not (Test-Path $exe)) { throw "OutlookClassicSearch.exe niet gevonden in publish/${{ matrix.rid }}" }
+          Get-Item $exe | Format-List Name, Length
+          "Aantal bestanden: " + (Get-ChildItem "publish/${{ matrix.rid }}" -Recurse -File).Count
+
+      - uses: actions/upload-artifact@v5
         with:
           name: OutlookClassicSearch-portable-${{ matrix.rid }}
           path: publish/${{ matrix.rid }}/
+          if-no-files-found: error
           retention-days: 30
+
